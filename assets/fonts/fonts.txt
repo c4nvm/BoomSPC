@@ -1,0 +1,6 @@
+# Bundled font manifest: file | display name | minimum size in px (0 = any).
+# Fonts not listed here are offered under their file name at any size.
+plok-small-font.otf | Plok! Small | 0
+plok-big-font.otf | Plok! Big (uppercase, large sizes) | 24
+mega-man-x.otf | Mega Man X | 0
+quake-pc.otf | Quake (PC) | 0

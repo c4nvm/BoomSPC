@@ -1,0 +1,12 @@
+build/
+.cache/
+compile_commands.json
+imgui.ini
+*.spc
+!test/*.spc
+*.rsn
+spctracker_theme.ini
+boomspc_theme.ini
+boomspc_keys.ini
+*.boomspc
+spctracker_keys.ini
