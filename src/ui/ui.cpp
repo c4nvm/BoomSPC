@@ -226,7 +226,7 @@ bool App::preview_regs_heard(const seq::Track& track, int voice, int ev_index, i
         const Heard& h = heard.at(heard_key(voice, e.addr));
         uint8_t nom[8];
         int ins_there = ins;
-        for (int i = best - 1; i >= 0 && ins >= 0; --i) if (track.events[size_t(i)].type == seq::EventType::Command && D.is_instrument_cmd(track.events[size_t(i)].b[0])) { ins_there = track.events[size_t(i)].b[1]; break; }
+        for (int i = best - 1; i >= 0 && ins >= 0; --i) if (track.events[size_t(i)].type == seq::EventType::Command && D.is_instrument_cmd(track.events[size_t(i)].b[0])) { ins_there = D.instrument_arg(track.events[size_t(i)]); break; }
         if (D.preview_regs(snap.ram, D.note_byte(D.event_semitone(e)), ins_there >= 0 ? ins_there : 0, nom)) {
             const int heard_p = h.regs[2] | (h.regs[3] << 8), nom_p = nom[2] | (nom[3] << 8), mine = regs[2] | (regs[3] << 8);
             if (heard_p > 0 && nom_p > 0) {

@@ -39,7 +39,7 @@ std::vector<Bar> bars_of(const seq::Driver& D, const seq::Track& t) {
     int ins = -1, qv = -1;
     for (int i = 0; i < t.used_events; ++i) {
         const Event& e = t.events[size_t(i)];
-        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) { ins = e.b[1]; continue; }
+        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) { ins = D.instrument_arg(e); continue; }
         if (e.type == EventType::Length) { if (e.size == 2) qv = e.b[1]; continue; }
         if (e.type == EventType::Tie && !out.empty() && out.back().tick + out.back().dur == e.tick && out.back().semitone >= 0) {
             Bar& b = out.back();
@@ -81,7 +81,7 @@ int instrument_at(const seq::Driver& D, const std::vector<Event>& ev, int tick) 
     int ins = -1;
     for (const Event& e : ev) {
         if (e.tick > tick) break;
-        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) ins = e.b[1];
+        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) ins = D.instrument_arg(e);
     }
     return ins;
 }

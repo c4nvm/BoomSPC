@@ -89,7 +89,7 @@ void draw_event_panel(App& app) {
         Event& e = ev[size_t(ei)];
         ImGui::PushID(ei);
         ImU32 col = th.u32(TC_NOTE);
-        if (e.type == EventType::Command) col = D.is_instrument_cmd(e.b[0]) ? th.instrument(e.b[1]) : th.u32(fx_theme(D.cmd_class(e.b[0])));
+        if (e.type == EventType::Command) col = D.is_instrument_cmd(e.b[0]) ? th.instrument(D.instrument_arg(e)) : th.u32(fx_theme(D.cmd_class(e.b[0])));
         else if (e.type == EventType::Rest) col = th.u32(TC_NOTE_OFF);
         else if (e.type == EventType::Tie) col = th.u32(TC_NOTE_TIE);
         else if (e.type == EventType::SubCall) col = th.u32(TC_FX_SONG);
@@ -104,7 +104,7 @@ void draw_event_panel(App& app) {
         }
         if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) {
             ImGui::SameLine();
-            if (ImGui::SmallButton("edit")) { app.sel_instrument = D.instrument_index(app.snap.ram, e.b[1]); app.show_instruments = true; }
+            if (ImGui::SmallButton("edit")) { app.sel_instrument = D.instrument_index(app.snap.ram, D.instrument_arg(e)); app.show_instruments = true; }
         }
         if (e.type == EventType::Length) {
             int len = e.b[0];

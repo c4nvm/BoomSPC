@@ -63,6 +63,9 @@ public:
     virtual void live_extra_writes(const uint8_t* ram, int voice, const Remap& remap, std::vector<std::pair<uint16_t, uint8_t>>& out) const { (void)ram; (void)voice; (void)remap; (void)out; }
     // Initial voice state before a program runs (transpose in force etc.).
     virtual State initial_state(const uint8_t* ram, uint16_t header, int voice) const { (void)ram; (void)header; (void)voice; return State{}; }
+    // State to re-run decode from over an event list being edited (formats
+    // whose header state the events cannot reproduce recover it here).
+    virtual State edit_state(const std::vector<seq::Event>& ev) const { (void)ev; return State{}; }
     // A jump command to `target`, for a program that loops by running into
     // bytes it already played (the header pointer starts mid-stream).
     virtual bool loop_jump(uint16_t target, seq::Event& e) const { (void)target; (void)e; return false; }

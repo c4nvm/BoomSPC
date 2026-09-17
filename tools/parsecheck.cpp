@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
                 const seq::Event& e = tr.events[ei];
                 if (!order_list && tr.loops && int(ei) == std::max(0, tr.loop_event)) loop_pi = parsed.size();
                 if (e.duration > 0 || e.type == seq::EventType::End) {
-                    uint16_t a = e.type == seq::EventType::Command ? e.addr : e.type == seq::EventType::End ? uint16_t(e.addr + D->end_park_offset()) : uint16_t(e.addr + e.size);
+                    uint16_t a = e.type == seq::EventType::End ? uint16_t(e.addr + D->end_park_offset()) : uint16_t(e.addr + e.size);
                     if (parsed.empty() || parsed.back() != a) parsed.push_back(a);
                 }
             }

@@ -292,7 +292,7 @@ std::vector<uint8_t> Driver::serialize_track(const std::vector<Event>& events) c
 }
 
 State Driver::state_before(const std::vector<Event>& ev, int i) const {
-    State s;
+    State s = edit_state(ev);
     for (int k = 0; k < i && k < int(ev.size()); ++k) {
         Event tmp{};
         Flow f{};
@@ -303,7 +303,7 @@ State Driver::state_before(const std::vector<Event>& ev, int i) const {
 }
 
 void Driver::retime(std::vector<Event>& ev) const {
-    State s;
+    State s = edit_state(ev);
     int tick = 0, base = 0;
     bool have_base = false;
     for (Event& e : ev) {
@@ -322,7 +322,7 @@ void Driver::retime(std::vector<Event>& ev) const {
 }
 
 int Driver::pitch_base(const std::vector<Event>& ev) const {
-    State s;
+    State s = edit_state(ev);
     for (const Event& e : ev) {
         Event tmp{};
         Flow f{};

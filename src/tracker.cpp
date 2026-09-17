@@ -229,19 +229,20 @@ int Tracker::extent_of(const seq::Track& t) {
 
 // Zeroes the bytes a relocated stream left behind, except any that other
 // tracks still play, so the space can be handed out again.
-void Tracker::release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, int len) {
+void Tracker::release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, int len, const seq::Track* skip) {
     (void)s;
     std::vector<bool> used(0x10000, false);
+    auto replaced = [&](const seq::Track& t) { return skip ? &t == skip : t.addr == at; };
     for (const seq::Song& sg : songs)
         for (const seq::Pattern& p : sg.patterns)
             for (const seq::Track& t : p.tracks) {
-                if (!t.addr || t.addr == at) continue;
+                if (!t.addr || replaced(t)) continue;
                 for (const Event& e : t.events) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
             }
     for (const seq::Song& sg : songs)
         for (const seq::Pattern& p : sg.patterns)
             for (const seq::Track& t : p.tracks)
-                if (t.addr == at) for (const Event& e : t.events) if (e.in_sub) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
+                if (replaced(t)) for (const Event& e : t.events) if (e.in_sub) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
     const uint8_t zero = 0;
     for (int a = at; a < at + len && a < 0x10000; ++a)
         if (!used[size_t(a)]) eng.write_ram(uint16_t(a), &zero, 1);
@@ -271,18 +272,24 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         std::vector<int> offsets;
         uint16_t dest = t.addr;
         bool relocated = false;
+        const bool piecewise = drv->piecewise_streams();   // the block holds only the pieces that changed
+        std::vector<std::pair<uint16_t, uint16_t>> old;    // [lo, hi) ranges a piecewise block replaces
         if (restructure) {
             const int extent = extent_of(t);
             bytes = drv->serialize_relocated(events, t.addr, &offsets);
-            if (int(bytes.size()) > extent && !bytes_free(snap, t.addr + extent, int(bytes.size()) - extent)) {
+            if (piecewise) drv->replaced_ranges(old);
+            auto fits_at = [&](int lo, int have) { return int(bytes.size()) <= have || bytes_free(snap, lo + have, int(bytes.size()) - have); };
+            const bool fits = !piecewise ? fits_at(t.addr, extent)
+                                         : old.size() == 1 && fits_at(old[0].first, int(old[0].second) - int(old[0].first));   // one piece: over its old bytes
+            if (piecewise && fits) dest = old[0].first;
+            if (!fits) {
                 bool reclaimed = false;
                 int at = find_space_or_reclaim(snap, int(bytes.size()), reclaimed);
                 if (at < 0) { r.msg = "stream grew and no free RAM was found, even in the other songs' data"; return r; }
                 if (reclaimed) note += " (RAM of the other songs reclaimed)";
                 dest = uint16_t(at);
-                relocated = true;
-                bytes = drv->serialize_relocated(events, dest, &offsets);
             }
+            if (piecewise || !fits) { relocated = true; bytes = drv->serialize_relocated(events, dest, &offsets); }
         }
         seq::Position live = restructure ? drv->locate(snap.ram, *sg, &pos) : seq::Position{};
         seq::Position image = restructure ? drv->locate(eng.image_ram(), *sg, nullptr) : seq::Position{};
@@ -343,7 +350,12 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
             if (!move_pointer(snap.ram, live, Engine::kLiveOnly)) moved_note = "";
             move_pointer(eng.image_ram(), image, Engine::kImageOnly);
             if (relocated && *moved_note) {
-                release_bytes(snap, eng, t.addr, extent_of(t));
+                if (!piecewise) old.push_back({t.addr, uint16_t(t.addr + extent_of(t))});
+                for (auto& o : old) {   // except what the block itself now occupies
+                    const int lo = std::max(int(o.first), int(dest) + int(bytes.size())), hi = int(o.second);
+                    if (o.first < dest) release_bytes(snap, eng, o.first, std::min(int(dest), hi) - int(o.first), &t);
+                    if (lo < hi) release_bytes(snap, eng, uint16_t(lo), hi - lo, &t);
+                }
                 std::vector<std::pair<uint16_t, uint8_t>> ptr;   // a pointer may live inside the released bytes
                 drv->track_pointer_writes(*sg, pattern_idx, voice, dest, ptr);
                 for (auto& w : ptr) eng.write_ram(w.first, &w.second, 1);

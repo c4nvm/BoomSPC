@@ -152,6 +152,8 @@ struct Driver {
     virtual FxClass     cmd_class(uint8_t op) const = 0;
     virtual bool        is_instrument_cmd(uint8_t op) const = 0;
     virtual uint8_t     instrument_opcode() const = 0;
+    // The instrument number an instrument command carries.
+    virtual int         instrument_arg(const Event& e) const { return e.b[1]; }
     // Range of opcodes for the "add command" picker.
     virtual uint8_t     first_command() const = 0;
     virtual int         command_count() const = 0;
@@ -258,6 +260,12 @@ struct Driver {
     // RAM writes that point voice `voice` of `song`'s pattern at `dest`.
     // Default: the N-SPC style pattern header (8 words).
     virtual void track_pointer_writes(const Song& song, int pattern_idx, int voice, uint16_t dest, std::vector<std::pair<uint16_t, uint8_t>>& out) const;
+    // True when serialize_relocated returns only the pieces of the stream
+    // that changed (each pointed at by the song): the block goes over a
+    // single piece's old bytes when it fits, else to fresh RAM, and
+    // replaced_ranges says which old bytes it frees.
+    virtual bool piecewise_streams() const { return false; }
+    virtual void replaced_ranges(std::vector<std::pair<uint16_t, uint16_t>>& out) const { (void)out; }
     // RAM writes that move the driver's live state for `voice` onto a
     // rewritten stream mid-play. `remap` maps old addresses (event starts
     // and the byte after each event) to their new ones; `ptr` is where the
@@ -304,7 +312,7 @@ struct Driver {
     // `tick` (its passes become plain copies, the frame commands go); the
     // rest of the voice keeps its structure. Returns false when nothing
     // shared covers the tick.
-    bool unroll_at(std::vector<Event>& ev, int tick) const;
+    virtual bool unroll_at(std::vector<Event>& ev, int tick) const;
     // Lengthens the track to `ticks` with rests (nothing if already longer);
     // an empty list becomes a fresh stream: one rest and the terminator.
     virtual bool extend(std::vector<Event>& ev, int ticks) const;

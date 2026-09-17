@@ -76,7 +76,7 @@ int preview_instrument(const App& app, const seq::Pattern& pat, int voice, int t
     for (int i = 0; i < t.used_events; ++i) {
         const Event& e = t.events[size_t(i)];
         if (e.tick > tick) break;
-        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) ins = e.b[1];
+        if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) ins = D.instrument_arg(e);
     }
     if (ins >= 0) return ins;
     const uint8_t* v = app.snap.dsp + voice * 0x10;
@@ -324,7 +324,7 @@ void draw_sequencer_panel(App& app) {
             if (note_like(e.type)) {
                 if (c.note_ev < 0) { c.note_ev = i; c.qv = cur_qv; } else c.extra = true;
             } else if (e.type == EventType::Command && D.is_instrument_cmd(e.b[0])) {
-                if (c.ins < 0) { c.ins = e.b[1]; c.ins_ev = i; } else c.extra = true;
+                if (c.ins < 0) { c.ins = D.instrument_arg(e); c.ins_ev = i; } else c.extra = true;
             } else if (e.type == EventType::Command || e.type == EventType::SubCall) {
                 if (c.fx_ev < 0) c.fx_ev = i; else c.extra = true;
             }
