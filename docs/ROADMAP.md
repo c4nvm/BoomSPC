@@ -13,13 +13,16 @@
 - **Grooves**: uneven row lengths (Wario's Woods writes 11-tick beats split
   6+5); the row<->tick mapping is one function today.
 - **More drivers**: Rare's Battletoads build, Sunsoft; Capcom song-list
-  games (X2/X3, SF2). Fresh RE needed (nothing public): Neverland (Lufia
-  1/2), Opus (Nosferatu, Final Stretch...: a nibble-packed stream, editing
-  would mean re-encoding), Sculptured Berlioz (Mortal Kombat II, Secret of
-  Evermore), Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam (Tales
-  of Phantasia, Star Ocean), Popful Mail, Elfaria, Energy Breaker, Super
-  Tetris 3 (an N-SPC build whose voice pointers are not in the zero page).
+  games (X2/X3, SF2). Fresh RE needed (nothing public): Opus (Nosferatu,
+  Final Stretch...: a nibble-packed stream, editing would mean
+  re-encoding), Sculptured Berlioz (Mortal Kombat II, Secret of Evermore),
+  Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam (Tales of
+  Phantasia, Star Ocean), Popful Mail, Elfaria, Super Tetris 3 (an N-SPC
+  build whose voice pointers are not in the zero page).
   `driver/falcom.cpp` is the smallest stream-driver template.
+- Neverland: a note held into a repeat pass that spans sections (FB in one
+  section, FC in a later one) stays shared; editing it would mean
+  inserting list entries.
 - Stream drivers on packed rips (Konami, Dragon Quest III) run out of free
   RAM for grown streams; only the other songs' bytes can be reclaimed.
 - N-SPC order-list editing, pattern length changes, a "new blank song";
@@ -279,6 +282,18 @@ V), Heartbeat (DQ3/6). Pitfalls worth remembering:
   IV store song pointers relative to a base, Intelligent Systems builds
   have multi-byte note parameters and table-sized commands (FA/FC/F9),
   Quintet's FF takes three arguments.
+- Two-level songs (Neverland: per-voice lists of sections, shared between
+  voices and revisited) parse as one program whose section-end events jump
+  to the next list entry (target, transpose and entry address stashed in
+  the event bytes; `Flow::Jump` with `count = 1` so a revisit is not a
+  loop). Editing is piecewise (`piecewise_streams`): only the section
+  visits that changed are written, to fresh RAM, and their list entries
+  repointed; `replaced_ranges` frees the old bytes. A repeat whose FB and
+  FC sit in one section unrolls into copies; the song loop is a
+  cross-section FB/FC 00 that also restores the list position. Short notes
+  (80-EF) inherit length, gate and velocity from the previous explicit
+  note, so the parser stashes them in each event and edits spell the next
+  short note out before changing them.
 
 ## What was learned about N-SPC (worth keeping)
 

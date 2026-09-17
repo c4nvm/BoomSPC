@@ -25,7 +25,8 @@ drivers it knows right now:
 - heartbeat (dragon quest iii and vi)
 - mint (shien's revenge, combatribes), compile (kirby's avalanche),
   pandora box (arabian nights), prism kikaku (dual orb ii), graphic
-  research (derby jockey 2), ascii (ardy lightfoot), falcom (ys v)
+  research (derby jockey 2), ascii (ardy lightfoot), falcom (ys v),
+  neverland (lufia 1/2, energy breaker)
 - warios woods (snes side engine, needs the .minisnsf + .snsflib)
 
 if the driver isnt recognized it still plays, you just dont get the editor.
