@@ -21,6 +21,7 @@
 #include "ascii.hpp"
 #include "falcom.hpp"
 #include "neverland.hpp"
+#include "berlioz.hpp"
 #include "heartbeat.hpp"
 #include "nspc.hpp"
 #include "wario.hpp"
@@ -245,6 +246,7 @@ std::unique_ptr<Driver> detect_driver(const uint8_t* ram, const uint8_t* dsp) {
     if (std::unique_ptr<Driver> d = falcom::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = heartbeat::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = neverland::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = berlioz::detect(ram)) return d;
     return nullptr;
 }
 
