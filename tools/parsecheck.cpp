@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     SNES_SPC spc;
     spc.init();
     spc.load_spc(f.data.data(), long(f.data.size()));
-    spc.play(1024, nullptr);   // dumps taken before the driver started have no pointers yet
+    spc.play(4096, nullptr);   // dumps taken before the driver started have no pointers yet
     uint8_t dsp[128];
     for (int i = 0; i < 128; ++i) dsp[i] = uint8_t(spc.dsp_ref().read(i));
     std::unique_ptr<seq::Driver> D = seq::detect_driver(spc.ram(), dsp);

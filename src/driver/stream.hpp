@@ -1,6 +1,6 @@
 // Shared base for drivers whose songs are one byte program per voice with
 // no order list (Konami, Hudson, Chunsoft, Mint, Compile, Pandora Box,
-// Neverland, Prism, Graphic Research, ASCII, Falcom...). A format supplies
+// Neverland, Prism, Graphic Research, ASCII, Falcom, Berlioz...). A format supplies
 // `decode` (one event from its bytes, plus the control flow it causes) and
 // a few tables; the parser, position tracking and the generic stream
 // editing come from here. Formats with more exotic control flow keep their
@@ -59,6 +59,8 @@ public:
     // slots depend on the header).
     virtual void select_song(uint16_t header) const { (void)header; }
     virtual int  ptr_span() const { return 16; }
+    // Fewer notes than this in a header and it is not a song.
+    virtual int  min_notes() const { return 4; }
     // Extra live state to remap on relocation (repeat / call stack words).
     virtual void live_extra_writes(const uint8_t* ram, int voice, const Remap& remap, std::vector<std::pair<uint16_t, uint8_t>>& out) const { (void)ram; (void)voice; (void)remap; (void)out; }
     // Initial voice state before a program runs (transpose in force etc.).

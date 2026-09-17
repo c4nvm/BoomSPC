@@ -112,11 +112,12 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
         int end = info.truncated || info.blocks > 0x1000 ? limit : std::min(limit, start + info.blocks * 9);
         for (int a = start; a < end; ++a) reserved[a] = true;
     }
+    const std::vector<bool> hard = reserved;   // driver, echo, directory, samples: never handed out, even as another song's bytes
     std::vector<bool> reclaimable(0x10000, false);
     for (size_t si = 0; si < songs.size(); ++si) {
         const seq::Song& sg = songs[si];
         const bool other = int(si) != song_index;
-        auto mark = [&](int a) { a &= 0xFFFF; reserved[a] = true; if (other) reclaimable[a] = true; };
+        auto mark = [&](int a) { a &= 0xFFFF; reserved[a] = true; if (other && !hard[a]) reclaimable[a] = true; };
         for (int a = sg.order_addr; a < sg.order_end; ++a) mark(a);
         for (const seq::Pattern& p : sg.patterns) {
             for (int a = p.addr; a < p.addr + 16; ++a) mark(a);
@@ -328,20 +329,22 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
                 }
                 const Event& at = t.events[size_t(at_pos.voice_event[voice])];
                 int best_i = -1;
+                bool same_end = false;   // a main event ends where the current one does (an unrolled copy of it)
                 auto usable = [&](size_t i) { return !events[i].in_sub && events[i].duration > 0 && offsets[i] >= 0; };
                 for (size_t i = 0; i < events.size() && best_i < 0 && at.addr; ++i)
                     if (usable(i) && events[i].addr == at.addr) best_i = int(i);
                 for (size_t i = 0; i < events.size() && best_i < 0; ++i)
-                    if (usable(i) && events[i].tick + events[i].duration == at.tick + at.duration) best_i = int(i);
+                    if (usable(i) && events[i].tick + events[i].duration == at.tick + at.duration) { best_i = int(i); same_end = true; }
                 for (size_t i = 0; i < events.size() && best_i < 0; ++i)
                     if (usable(i) && events[i].tick >= at.tick) best_i = int(i);
                 for (size_t i = events.size(); i-- > 0 && best_i < 0;)
                     if (usable(i)) best_i = int(i);
-                const bool can_move = at.in_sub ? drv->remaps_stack() : (best_i >= 0 && (at.nest == 0 || drv->remaps_stack()));
+                const bool shared_stays = at.in_sub && !same_end;   // inside shared bytes that keep playing where they are
+                const bool can_move = shared_stays ? drv->remaps_stack() : (best_i >= 0 && (at.nest == 0 || drv->remaps_stack()));
                 if (std::getenv("BOOMSPC_DEBUG_EDIT")) std::fprintf(stderr, "%s move: at event %d tick %d+%d best %d can_move %d\n", target == Engine::kLiveOnly ? "live" : "image", at_pos.voice_event[voice], at.tick, at.duration, best_i, can_move);
                 if (!can_move) return false;
                 std::vector<std::pair<uint16_t, uint8_t>> lp;
-                uint16_t fallback = at.in_sub ? at_pos.voice_ptr[voice] : uint16_t(dest + offsets[size_t(best_i)] + events[size_t(best_i)].size);
+                uint16_t fallback = shared_stays ? at_pos.voice_ptr[voice] : uint16_t(dest + offsets[size_t(best_i)] + events[size_t(best_i)].size);
                 drv->live_state_writes(ram, at_pos, voice, fallback, remap, lp);
                 if (std::getenv("BOOMSPC_DEBUG_EDIT")) for (auto& w : lp) std::fprintf(stderr, "%s write $%04X = %02X\n", target == Engine::kLiveOnly ? "live" : "image", w.first, w.second);
                 for (auto& w : lp) eng.write_ram(w.first, &w.second, 1, target);

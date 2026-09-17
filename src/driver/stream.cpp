@@ -71,7 +71,7 @@ seq::Track Driver::parse_track(const uint8_t* ram, uint16_t start, const State& 
         Flow f{};
         s.tick = tick;
         decode(buf, pc, s, e, f);
-        if (e.size == 0) break;
+        if (e.size == 0 && f.kind == Flow::Next) break;   // a size-0 event marks a point the program only jumps from
         e.addr = uint16_t(pc);
         e.tick = tick;
         bool in_call = false;
@@ -205,7 +205,7 @@ std::vector<seq::Song> Driver::find_songs(const uint8_t* ram, const uint8_t* dsp
         prune_idle_voices(ram, pat);
         int notes = 0;
         for (int v = 0; v < 8; ++v) for (const Event& e : pat.tracks[v].events) if (e.type == EventType::Note || e.type == EventType::Percussion) ++notes;
-        if (notes < 4) { ++index; continue; }
+        if (notes < min_notes()) { ++index; continue; }
         bool loops = false;
         for (int v = 0; v < 8; ++v) if (pat.tracks[v].loops) loops = true;
         seq::Song sg;
