@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" width="160" alt="BoomSPC"></p>
+
 # BoomSPC
 
 spc700 player and tracker. loads .spc rips, plays them with blargg's snes_spc
