@@ -80,10 +80,55 @@ const CommandSpec kEbCommands[] = {
     {"Percussion base", 1},   // FA
 };
 
-constexpr uint8_t kSmwSub = 0xE9;
-constexpr uint8_t kEbSub  = 0xEF;
+// Commands past the standard set in the Intelligent Systems builds (index = op - cmd_base - 27).
+const CommandSpec kIntelliFe3Extra[] = {
+    {"Echo on", 0},           // F1
+    {"Echo off", 0},          // F2
+    {"Legato on", 0},         // F3
+    {"Legato off", 0},        // F4
+    {"Mode flags", 1},        // F5
+    {"Write APU port", 1},    // F6
+    {"Jump (conditional)", 1},// F7
+    {"Jump", 1},              // F8
+    {"Voice table", 36},      // F9
+    {"Define voice param", 1},// FA
+    {"Load voice param", 1},  // FB
+    {"ADSR", 2},              // FC
+    {"GAIN sustain", 2},      // FD
+};
+const CommandSpec kIntelliTaExtra[] = {
+    {"Echo on", 0},           // F5
+    {"Echo off", 0},          // F6
+    {"ADSR", 2},              // F7
+    {"GAIN sustain", 2},      // F8
+    {"GAIN sustain time", 1}, // F9
+    {"Define voice param", 1},// FA
+    {"Load voice param", 1},  // FB
+    {"Percussion table", 1},  // FC
+    {"Sub-event", 1},         // FD
+};
+const CommandSpec kIntelliFe4Extra[] = {
+    {"Echo on", 0},           // F5
+    {"Echo off", 0},          // F6
+    {"GAIN", 1},              // F7
+    {"GAIN", 1},              // F8
+    {"Unknown", 0},           // F9
+    {"Define voice param", 1},// FA
+    {"Load voice param", 1},  // FB
+    {"Percussion table", 1},  // FC
+    {"Sub-event", 1},         // FD
+};
 
-uint8_t sub_opcode(const Layout& L) { return L.variant == Variant::EB ? kEbSub : kSmwSub; }
+uint8_t sub_opcode(const Layout& L) { return uint8_t(L.cmd_base + 0x0F); }
+
+int find_pat(const uint8_t* ram, int lo, int hi, const int* pat, int n) {
+    for (int a = lo; a + n <= hi; ++a) {
+        bool ok = true;
+        for (int i = 0; i < n && ok; ++i) ok = pat[i] == 0x100 || ram[a + i] == pat[i];
+        if (ok) return a;
+    }
+    return -1;
+}
 
 int count_bytes(const uint8_t* ram, int lo, int hi, const uint8_t* needle, int n) {
     int c = 0;
@@ -105,7 +150,16 @@ int Layout::cmd_size(uint8_t b) const {
 const char* Layout::cmd_name(uint8_t b) const {
     if (!is_command(b)) return "?";
     int i = b - cmd_base;
-    return i < command_count ? commands[i].name : "Unknown";
+    if (i < command_count) return commands[i].name;
+    const int x = i - command_count;
+    if (profile == Profile::IntelliFe3 && x < int(sizeof kIntelliFe3Extra / sizeof *kIntelliFe3Extra)) return kIntelliFe3Extra[x].name;
+    if (profile == Profile::IntelliTa && x < int(sizeof kIntelliTaExtra / sizeof *kIntelliTaExtra)) return kIntelliTaExtra[x].name;
+    if (profile == Profile::IntelliFe4 && x < int(sizeof kIntelliFe4Extra / sizeof *kIntelliFe4Extra)) return kIntelliFe4Extra[x].name;
+    if (profile == Profile::Konami && b == 0xE5) return "Loop start";
+    if (profile == Profile::Konami && b == 0xE6) return "Loop end";
+    if (profile == Profile::Quintet && b == 0xFF) return "ADSR";
+    if (profile == Profile::Quintet && b == 0xF4) return "Tuning";
+    return "Unknown";
 }
 
 int note_pitch(const uint8_t* ram, int semitone, int mult_hi, int mult_lo) {
@@ -121,6 +175,23 @@ int note_pitch(const uint8_t* ram, int semitone, int mult_hi, int mult_lo) {
     if (shift > 0) base >>= shift; else if (shift < 0) base <<= -shift;
     int pitch = (base * ((mult_hi << 8) | mult_lo)) >> 8;
     return std::min(pitch, 0x3FFF);
+}
+
+const char* profile_name(Profile p) {
+    switch (p) {
+        case Profile::Earlier: return "Nintendo (early)";
+        case Profile::Standard: return "Nintendo";
+        case Profile::IntelliFe3: return "Intelligent Systems (Fire Emblem 3)";
+        case Profile::IntelliTa: return "Intelligent Systems (Tetris Attack)";
+        case Profile::IntelliFe4: return "Intelligent Systems (Fire Emblem 4)";
+        case Profile::Konami: return "Konami";
+        case Profile::Human: return "Human";
+        case Profile::Tose: return "Tose";
+        case Profile::FalcomYs4: return "Falcom (Ys IV)";
+        case Profile::Lemmings: return "Lemmings";
+        case Profile::Quintet: return "Quintet";
+        default: return "";
+    }
 }
 
 const char* variant_name(Variant v) {
@@ -148,45 +219,120 @@ Layout layout_for(Variant v) {
 
 Layout detect(const uint8_t* ram) {
     Layout L;
-    constexpr int code_lo = 0x200, code_hi = 0x2000;
+    constexpr int code_lo = 0x200, code_hi = 0xFFF0;
+    const int W = 0x100;
 
-    const uint8_t cmp_da[] = {0x68, 0xDA};
-    const uint8_t cmp_e0[] = {0x68, 0xE0};
-    const uint8_t sbc_e0[] = {0xA8, 0xE0};
-    const uint8_t cmp_c6[] = {0x68, 0xC6};
-    const uint8_t cmp_c8[] = {0x68, 0xC8};
-    int smw_score = count_bytes(ram, code_lo, code_hi, cmp_da, 2) * 2 + count_bytes(ram, code_lo, code_hi, cmp_c6, 2);
-    int eb_score  = (count_bytes(ram, code_lo, code_hi, cmp_e0, 2) + count_bytes(ram, code_lo, code_hi, sbc_e0, 2)) * 2 +
-                    count_bytes(ram, code_lo, code_hi, cmp_c8, 2);
-    if (smw_score == 0 && eb_score == 0) return L;
-    L = layout_for(smw_score >= eb_score ? Variant::SMW : Variant::EB);
+    // Where the command bytes start, from the branch that separates them from notes.
+    int cmd_base = -1, len_table = -1;
+    const int branch[] = {0x68, W, 0x90, 0x05, 0x3F, W, W, 0x2F, W};
+    const int readahead[] = {0x68, W, 0xF0, W, 0x68, W, 0x90, W, 0x6D, 0xFD, 0xAE, 0x96, W, W};
+    const int smw_len[] = {0x68, W, 0x90, 0x0A, 0x6D, 0xFD, 0xAE, 0x60, 0x96, W, W, 0xFD, 0x2F, 0xE3};
+    const int sbc_len[] = {0x68, W, 0x90, W, 0x6D, 0xFD, 0xAE, 0x80, 0x96, W, W};
+    const int tose_len[] = {0x80, 0xA8, W, 0xCB, 0x00, 0xFD, 0xF6, W, W};
+    if (int a = find_pat(ram, code_lo, code_hi, branch, 9); a >= 0) cmd_base = ram[a + 1];
+    if (int a = find_pat(ram, code_lo, code_hi, readahead, 14); a >= 0) { cmd_base = ram[a + 5]; len_table = (rd16(ram, a + 12) + cmd_base) & 0xFFFF; }
+    if (int a = find_pat(ram, code_lo, code_hi, smw_len, 14); a >= 0) { cmd_base = ram[a + 1]; len_table = (rd16(ram, a + 9) + cmd_base) & 0xFFFF; }
+    if (int a = find_pat(ram, code_lo, code_hi, sbc_len, 11); a >= 0 && len_table < 0) { cmd_base = ram[a + 1]; len_table = (rd16(ram, a + 9) + cmd_base) & 0xFFFF; }
+    if (int a = find_pat(ram, code_lo, code_hi, tose_len, 9); a >= 0 && len_table < 0) { cmd_base = ram[a + 2]; len_table = rd16(ram, a + 7); }
+    // Jump-table dispatch: the length table sits next to it.
+    const int jump[] = {0x1C, 0xFD, 0xF6, W, W, 0x2D, 0xF6, W, W, 0x2D, 0xDD, 0x5C, 0xFD, 0xF6, W, W};
+    bool direct_jump = false, human = false;
+    if (int a = find_pat(ram, code_lo, code_hi, jump, 16); a >= 0) {
+        direct_jump = a >= 3 && ram[a - 3] == 0x80 && ram[a - 2] == 0xA8;
+        if (direct_jump) cmd_base = ram[a - 1];
+        if (cmd_base < 0) cmd_base = 0xE0;
+        if (len_table < 0) len_table = direct_jump ? rd16(ram, a + 14) : (rd16(ram, a + 14) + (cmd_base & 0x7F)) & 0xFFFF;
+        if (direct_jump && ram[a + 16] == 0xFD && ram[a + 17] == 0xF0) human = true;
+    }
+    const int smw_jump[] = {0x1C, 0x5D, 0xE8, 0x00, 0x1F, W, W};
+    const bool earlier = find_pat(ram, code_lo, code_hi, smw_jump, 7) >= 0 || find_pat(ram, code_lo, code_hi, smw_len, 14) >= 0;
 
-    for (int a = code_lo; a < code_hi - 8; ++a)
-        if (ram[a] == 0xE4 && ram[a + 2] == 0xEE && ram[a + 3] == 0xCF && ram[a + 4] == 0x60 && ram[a + 5] == 0x84) { L.tempo_addr = ram[a + 1]; break; }
+    if (cmd_base < 0) {
+        const uint8_t cmp_da[] = {0x68, 0xDA};
+        const uint8_t cmp_e0[] = {0x68, 0xE0};
+        const uint8_t sbc_e0[] = {0xA8, 0xE0};
+        const uint8_t cmp_c6[] = {0x68, 0xC6};
+        const uint8_t cmp_c8[] = {0x68, 0xC8};
+        int smw_score = count_bytes(ram, code_lo, code_hi, cmp_da, 2) * 2 + count_bytes(ram, code_lo, code_hi, cmp_c6, 2);
+        int eb_score  = (count_bytes(ram, code_lo, code_hi, cmp_e0, 2) + count_bytes(ram, code_lo, code_hi, sbc_e0, 2)) * 2 +
+                        count_bytes(ram, code_lo, code_hi, cmp_c8, 2);
+        if (smw_score == 0 && eb_score == 0) return L;
+        cmd_base = smw_score >= eb_score ? 0xDA : 0xE0;
+    }
+    L = layout_for(earlier ? Variant::SMW : Variant::EB);
+    L.cmd_base = uint8_t(cmd_base);
+    if (L.perc_base && L.perc_end >= L.cmd_base) L.perc_end = uint8_t(L.cmd_base - 1);
+    if (L.perc_base >= L.cmd_base) L.perc_base = L.perc_end = 0;
+    L.profile = human ? Profile::Human : earlier ? Profile::Earlier : Profile::Standard;
 
+    // Tick accumulator: the timer count times the tempo, added to a fraction byte.
+    for (int a = code_lo + 8; a < code_hi - 8 && !L.tempo_addr; ++a) {
+        if (ram[a] != 0xCF) continue;
+        bool adds = false;
+        for (int k = a + 1; k < a + 10; ++k) if (ram[k] == 0x60 && ram[k + 1] == 0x84) adds = true;
+        if (!adds) continue;
+        if (ram[a - 3] == 0xE4 && ram[a - 1] == 0xEE) L.tempo_addr = ram[a - 2];               // mov a, tempo; pop y
+        else if (ram[a - 3] == 0xEE && ram[a - 2] == 0xE4) L.tempo_addr = ram[a - 1];          // pop y; mov a, tempo
+        else if (ram[a - 5] == 0xEB && ram[a - 3] == 0xD0 && ram[a - 1] == 0xDC) L.tempo_addr = ram[a - 4];   // mov y, tempo; bne; dec y
+        else if (ram[a - 5] == 0xE4 && ram[a - 3] == 0x60 && ram[a - 2] == 0x84) L.tempo_addr = ram[a - 4];   // mov a, tempo; clrc; adc a, offset (Quintet)
+        else if ((ram[a - 2] == 0xE4 || ram[a - 2] == 0xEB) && ram[a - 1] != 0x00 && ram[a - 1] < 0xF0) L.tempo_addr = ram[a - 1];
+    }
+
+    auto take_table = [&](int table) {
+        const uint8_t* t = ram + (table & 0xFFFF);
+        bool total = t[0] == 2 && t[1] == 2 && t[2] == 3 && t[3] == 4;
+        bool args  = t[0] == 1 && t[1] == 1 && t[2] == 2 && t[3] == 3;
+        if (!total && !args) return false;
+        L.len_table = uint16_t(table);
+        for (int i = 0; i < 64 && table + i < 0x10000; ++i) {
+            uint8_t v = t[i];
+            if (args) v = uint8_t(v + 1);
+            if (v == 0 || v > 40) break;
+            L.len_from_ram[i] = v;
+        }
+        return true;
+    };
+    if (len_table >= 0) take_table(len_table);
     for (int a = code_lo; a < code_hi - 50 && !L.len_table; ++a) {
         if (ram[a] != 0x68 || ram[a + 1] != L.cmd_base || ram[a + 2] != 0x90) continue;
         for (int k = a + 3; k < a + 48; ++k) {
             if (ram[k] != 0x96 && ram[k] != 0xF6) continue;
-            int table = (rd16(ram, k + 1) + L.cmd_base) & 0xFFFF;
-            const uint8_t* t = ram + table;
-            bool total = t[0] == 2 && t[1] == 2 && t[2] == 3 && t[3] == 4;
-            bool args  = t[0] == 1 && t[1] == 1 && t[2] == 2 && t[3] == 3;
-            if (!total && !args) continue;
-            L.len_table = uint16_t(table);
-            for (int i = 0; i < 64 && table + i < 0x10000; ++i) {
-                uint8_t v = t[i];
-                if (args) v = uint8_t(v + 1);
-                if (v == 0 || v > 12) break;
-                L.len_from_ram[i] = v;
-            }
-            break;
+            if (take_table((rd16(ram, k + 1) + L.cmd_base) & 0xFFFF)) break;
         }
     }
     if (!L.len_table) return Layout{};
     if (L.variant == Variant::SMW) {
         for (int i = 25; i < 64; ++i)
             if (L.len_from_ram[i]) { L.amk = true; break; }
+    }
+
+    // Order pointer and the licensee builds that read it differently.
+    const int sect[] = {0x8D, 0x00, 0xF7, W, 0x3A, W, 0x2D, 0xF7, W, 0x3A, W, 0xFD, 0xAE};
+    const int sect_konami[] = {0x8D, 0x00, 0xF7, W, 0x3A, W, 0x2D, 0xF7, W, 0xF0, 0x08, 0x3A, W, 0xFD, 0xAE, 0x7A, W};
+    const int sect_tose[] = {0x8D, 0x00, 0xF7, W, 0xC4, 0x00, 0xC4, W, 0x3A, W, 0xF7, W, 0xC4, 0x01, 0xC4, W, 0x3A, W, 0x68, 0x00, 0xD0, 0x28};
+    const int sect_ys4[] = {0x8D, 0x00, 0xF7, W, 0x0D, 0x3A, W, 0x2D, 0xF7, W, 0x3A, W, 0xFD, 0xAE, 0xF0, 0x27, 0x7A, W};
+    if (int a = find_pat(ram, code_lo, code_hi, sect, 13); a >= 0) L.order_zp = ram[a + 3];
+    else if (int a = find_pat(ram, code_lo, code_hi, sect_konami, 17); a >= 0) {
+        L.order_zp = ram[a + 3]; L.profile = Profile::Konami;
+        L.addr_base = rd16(ram, ram[a + 16]); L.relative = L.addr_base != 0;
+    } else if (int a = find_pat(ram, code_lo, code_hi, sect_tose, 22); a >= 0) { L.order_zp = ram[a + 3]; L.profile = Profile::Tose; }
+    else if (int a = find_pat(ram, code_lo, code_hi, sect_ys4, 18); a >= 0) {
+        L.order_zp = ram[a + 3]; L.profile = Profile::FalcomYs4;
+        L.addr_base = rd16(ram, ram[a + 17]); L.relative = true;
+    }
+    const int lem[] = {0x30, 0x1E, 0xD5, 0x00, 0x02, 0x3F, W, W};
+    const int intelli_fa[] = {0x30, 0xDD, 0xF4, 0x22, 0xC4, 0xB6, 0xF4, 0x23};
+    const int fe3_note[] = {0x68, 0x40, 0xB0, 0x0C, 0x28, 0x3F, 0xFD, 0xF6};
+    const int fe4_note[] = {0x01, 0x30, 0x13, 0x68, 0x40, 0x28, 0x3F, 0xFD};
+    const int quintet[] = {0xE5, W, W, 0xEC, W, W, 0xDA, W, 0x3A, W, 0x3A, W};
+    if (L.profile == Profile::Standard) {
+        if (int a = find_pat(ram, code_lo, code_hi, quintet, 12); a >= 0 && ram[a + 7] == ram[a + 9] && ram[a + 9] == ram[a + 11]) { L.profile = Profile::Quintet; if (!L.order_zp) L.order_zp = ram[a + 7]; }
+        else if (find_pat(ram, code_lo, code_hi, lem, 8) >= 0) L.profile = Profile::Lemmings;
+        else if (find_pat(ram, code_lo, code_hi, intelli_fa, 8) >= 0 || L.cmd_base == 0xD6 || (L.cmd_base == 0xDA && !earlier)) {
+            if (find_pat(ram, code_lo, code_hi, fe3_note, 8) >= 0 || L.cmd_base == 0xD6) L.profile = Profile::IntelliFe3;
+            else if (find_pat(ram, code_lo, code_hi, fe4_note, 8) >= 0) L.profile = Profile::IntelliFe4;
+            else L.profile = Profile::IntelliTa;
+        }
     }
 
     for (int a = code_lo; a < code_hi - 8; ++a) {
@@ -268,6 +414,8 @@ struct Parser {
     int            cur_len = 0;
     int            tick = 0;
     int            bytes_seen = 0;
+    bool           intelli_params = false;   // FE3: F5 switched the note parameters to the multi-byte form
+    int            kloop_start = -1, kloop_pass = 0;   // Konami E5 / E6
     static constexpr int kMaxBytes  = 0x4000;
     static constexpr int kMaxEvents = 8192;
 
@@ -298,8 +446,13 @@ struct Parser {
             if (b < 0x80) {
                 e.type = EventType::Length; e.size = 1;
                 cur_len = b;
-                uint8_t n = ram[(p + 1) & 0xFFFF];
-                if (n < 0x80 && n != 0) { e.size = 2; e.b[1] = n; }
+                const bool multi = L.profile == Profile::IntelliTa || L.profile == Profile::IntelliFe4 || (L.profile == Profile::IntelliFe3 && intelli_params);
+                const int max_params = multi ? 14 : L.profile == Profile::Lemmings ? 2 : 1;
+                for (int k = 0; k < max_params; ++k) {
+                    uint8_t n = ram[(p + e.size) & 0xFFFF];
+                    if (n >= 0x80 || n == 0) break;
+                    e.b[e.size] = n; ++e.size;
+                }
                 p += e.size; bytes_seen += e.size;
                 if (!push(e)) return -1;
                 continue;
@@ -319,13 +472,15 @@ struct Parser {
                     if (in_sub) return -1;
                     e.type = EventType::SubCall; e.size = 4;
                     for (int i = 1; i < 4; ++i) e.b[i] = ram[(p + i) & 0xFFFF];
-                    uint16_t target = uint16_t(e.b[1] | (e.b[2] << 8));
+                    uint16_t target = L.resolve(uint16_t(e.b[1] | (e.b[2] << 8)));
                     int count = e.b[3];
                     p += 4; bytes_seen += 4;
                     if (!push(e)) return -1;
                     if (target < 0x100 || count == 0) return -1;
-                    for (int it = 0; it < count; ++it)
+                    for (int it = 0; it < count; ++it) {
                         if (run(target, it, true) < 0) return -1;
+                        if (out.events.size() > size_t(kMaxEvents / 2)) break;   // a huge repeat count: the rest is not spelled out
+                    }
                     continue;
                 }
                 e.type = EventType::Command;
@@ -333,9 +488,43 @@ struct Parser {
                     int n = ram[(p + 1) & 0xFFFF];
                     size += (n & 0x80) ? 1 : n;
                 }
-                if (size > int(sizeof e.b)) return -1;
+                const uint8_t a1 = ram[(p + 1) & 0xFFFF];
+                const bool fe3 = L.profile == Profile::IntelliFe3, ta = L.profile == Profile::IntelliTa, fe4 = L.profile == Profile::IntelliFe4;
+                if ((fe3 || ta || fe4) && b == 0xFA) size = a1 < 0x80 ? 2 + a1 * 4 : fe4 ? 2 : 8;   // define voice param: a table, or one instrument's region
+                if (fe3 && b == 0xF9) size = 37;                                           // voice table
+                if ((ta || fe4) && b == 0xFC) size = 2 + ((a1 & 15) + 1) * 3;             // percussion table
+                if (ta && b == 0xFD) size = 2 + (a1 == 0 ? 3 : (a1 == 1 || a1 == 2 || a1 == 5) ? 1 : 0);
+                if (fe4 && b == 0xFD) size = 2 + ((a1 == 1 || a1 == 2) ? 1 : 0);
+                if (fe3 && b == 0xF5 && a1 >= 0xF0 && (a1 & 7) == 7) intelli_params = !(a1 & 8);
+                if (L.profile == Profile::Quintet && b == 0xFF) size = 4;                  // ADSR: a1, sustain rate, sustain level
+                if (size > 260) return -1;
+                if (size > int(sizeof e.b)) {   // wider than an event: split into raw chunks
+                    for (int done = 0; done < size;) {
+                        Event c = e;
+                        c.addr = uint16_t(p + done);
+                        c.size = uint8_t(std::min(size - done, int(sizeof e.b)));
+                        for (int i = 0; i < c.size; ++i) c.b[i] = ram[(p + done + i) & 0xFFFF];
+                        if (!push(c)) return -1;
+                        done += c.size;
+                    }
+                    p += size; bytes_seen += size;
+                    continue;
+                }
                 e.size = uint8_t(size);
                 for (int i = 1; i < size; ++i) e.b[i] = ram[(p + i) & 0xFFFF];
+                if (fe3 && (b == 0xF7 || b == 0xF8)) {   // short forward jump
+                    push(e); bytes_seen += 2;
+                    p = (p + 2 + a1) & 0xFFFF;
+                    continue;
+                }
+                if (L.profile == Profile::Konami && b == 0xE5) { kloop_start = int(p + 1); kloop_pass = 0; }
+                if (L.profile == Profile::Konami && b == 0xE6 && kloop_start >= 0) {
+                    p += 4; bytes_seen += 4;
+                    if (!push(e)) return -1;
+                    if (++kloop_pass < (a1 ? a1 : 256) && kloop_pass < 8) { p = uint32_t(kloop_start); in_sub = true; sub_iter = kloop_pass; }
+                    else { kloop_start = -1; in_sub = false; sub_iter = 0; }
+                    continue;
+                }
             } else {
                 return -1;
             }
@@ -363,7 +552,7 @@ Pattern parse_pattern(const uint8_t* ram, const Layout& L, uint16_t addr) {
     p.addr = addr;
     int len = -1;
     for (int v = 0; v < 8; ++v) {
-        uint16_t ta = rd16(ram, addr + v * 2);
+        uint16_t ta = L.resolve(rd16(ram, addr + v * 2));
         p.tracks[v] = parse_track(ram, L, ta);
         const Track& t = p.tracks[v];
         if (t.addr && !t.truncated && (len < 0 || t.total_ticks < len)) len = t.total_ticks;
@@ -412,7 +601,7 @@ struct Scanner {
         int used = 0;
         bool ok = true;
         for (int v = 0; v < 8 && ok; ++v) {
-            uint16_t t = rd16(ram, a + v * 2);
+            uint16_t t = L.resolve(rd16(ram, a + v * 2));
             if (t == 0) continue;
             ++used;
             if (!track_ok(t)) ok = false;
@@ -453,19 +642,19 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
     constexpr int kDataStart = 0x400;
     for (int a = kDataStart; a < 0xFFF0; ++a) {
         if (consumed[a]) continue;
-        if (!S.pattern_ok(rd16(ram, a))) continue;
+        if (!S.pattern_ok(L.resolve(rd16(ram, a)))) continue;
 
         int p = a;
         std::vector<Order> orders;
-        while (p < 0xFFF0 && S.pattern_ok(rd16(ram, p))) {
-            orders.push_back({uint16_t(p), rd16(ram, p)});
+        while (p < 0xFFF0 && S.pattern_ok(L.resolve(rd16(ram, p)))) {
+            orders.push_back({uint16_t(p), L.resolve(rd16(ram, p))});
             p += 2;
         }
         uint16_t term = rd16(ram, p);
         int loop_count = 0, loop_to = -1, end = p + 2;
         if (term == 0) {
         } else if (term < 0x100) {
-            uint16_t target = rd16(ram, p + 2);
+            uint16_t target = L.resolve(rd16(ram, p + 2));
             if (target < a || target >= p || ((target - a) & 1)) continue;
             loop_count = term;
             loop_to = (target - a) / 2;
@@ -473,6 +662,9 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         } else {
             continue;
         }
+        bool overlaps = false;   // a pattern inside its own order list is a mis-aligned start
+        for (const Order& o : orders) if (o.pattern_addr >= a && o.pattern_addr < end) overlaps = true;
+        if (overlaps) continue;
         Song s;
         s.order_addr = uint16_t(a);
         s.order_end  = uint16_t(end);
@@ -525,13 +717,14 @@ bool find_track_pointers(const uint8_t* ram, const Song& song, uint16_t& base_ou
         if (!used) continue;
         const int need = std::max(2, (used * 3 + 4) / 5);
         for (int base = 0; base + 16 <= 0x400; ++base) {
-            int score = 0;
+            int score = 0, miss = 0;
             for (int v = 0; v < 8; ++v) {
                 uint16_t p = rd16(ram, base + v * 2);
                 if (p && in_ranges(ranges[v], p)) ++score;
+                else if (p && pat.tracks[v].addr) ++miss;
             }
             if (score < need) continue;
-            int weighted = score * 4 + (base == 0x30 ? 3 : 0) + (base < 0x100 ? 1 : 0);
+            int weighted = score * 4 - miss * 3 + (base == 0x30 ? 3 : 0) + (base < 0x100 ? 1 : 0);
             if (weighted > best_score) { best_score = weighted; best_base = uint16_t(base); best_pat = int(pi); score_out = score; }
         }
     }

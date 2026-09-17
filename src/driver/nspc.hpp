@@ -12,10 +12,12 @@
 //   perc range  percussion notes (D0..D9 SMW, CA..DF EB)
 //   cmd_base..  commands with fixed argument counts (see kCommands*)
 //
-// Two variants are handled: the Super Mario World era driver (commands start
+// Two dialects are handled: the Super Mario World era driver (commands start
 // at $DA, 5-byte instruments) and the EarthBound / Kirby era driver (commands
-// start at $E0, 6-byte instruments). Variant details are discovered from the
-// driver code in ARAM where possible.
+// start at $E0, 6-byte instruments), plus the licensee builds that keep the
+// EarthBound dialect but move the command base, add commands or make the
+// pointers relative (Intelligent Systems, Konami, Human, Tose, Falcom,
+// Lemmings). Details are read from the driver code in ARAM.
 #pragma once
 
 #include <cstdint>
@@ -27,6 +29,7 @@
 
 namespace nspc {
 enum class Variant { Unknown, SMW, EB };
+enum class Profile { Unknown, Earlier, Standard, IntelliFe3, IntelliTa, IntelliFe4, Konami, Human, Tose, FalcomYs4, Lemmings, Quintet };
 
 struct CommandSpec {
     const char* name;
@@ -50,6 +53,12 @@ struct Layout {
     uint8_t  len_from_ram[64]{};
     bool     amk = false;         // AddmusicK-extended SMW driver
     uint8_t  tempo_addr = 0;      // zero-page tempo byte (the tick accumulator adds it per timer-0 count), 0 = unknown
+    Profile  profile = Profile::Unknown;
+    uint8_t  order_zp = 0;        // zero-page word the driver reads the order list through, 0 = unknown
+    uint16_t addr_base = 0;       // Konami / Falcom: song pointers are relative to this
+    bool     relative = false;
+    uint16_t resolve(uint16_t raw) const { return relative && raw ? uint16_t(raw + addr_base) : raw; }
+    uint16_t unresolve(uint16_t addr) const { return relative && addr ? uint16_t(addr - addr_base) : addr; }
 
     const CommandSpec* commands = nullptr;  // indexed by opcode - cmd_base
     int command_count = 0;
@@ -94,6 +103,7 @@ int         note_pitch(const uint8_t* ram, int semitone, int mult_hi, int mult_l
 std::vector<uint8_t> serialize_track(const std::vector<Event>& events);
 
 const char* variant_name(Variant v);
+const char* profile_name(Profile p);
 
 class NspcDriver : public seq::Driver {
 public:
@@ -143,6 +153,8 @@ public:
     bool set_qv(std::vector<Event>& ev, int timed_idx, int q, int v) const override;
     bool remove_span(std::vector<Event>& ev, int tick, int ticks, bool keep_length) const override;
     bool insert_span(std::vector<Event>& ev, int tick, int ticks, uint8_t byte) const override;
+
+    void track_pointer_writes(const Song& song, int pattern_idx, int voice, uint16_t dest, std::vector<std::pair<uint16_t, uint8_t>>& out) const override;
 
     static int ensure_own_length(std::vector<Event>& ev, int timed_idx);
 };

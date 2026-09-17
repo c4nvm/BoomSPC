@@ -295,8 +295,16 @@ bool NspcDriver::insert_span(std::vector<Event>& ev, int tick, int ticks, uint8_
     return remove_span(ev, total, ticks, false);
 }
 
+void NspcDriver::track_pointer_writes(const Song& song, int pattern_idx, int voice, uint16_t dest, std::vector<std::pair<uint16_t, uint8_t>>& out) const {
+    if (pattern_idx < 0 || pattern_idx >= int(song.patterns.size())) return;
+    const uint16_t at = uint16_t(song.patterns[size_t(pattern_idx)].addr + voice * 2), raw = L.unresolve(dest);
+    out.push_back({at, uint8_t(raw & 0xFF)});
+    out.push_back({uint16_t(at + 1), uint8_t(raw >> 8)});
+}
+
 std::string NspcDriver::name() const {
     std::string n = variant_name(L.variant);
+    if (L.profile != Profile::Unknown && L.profile != Profile::Standard && L.profile != Profile::Earlier) n += std::string(", ") + profile_name(L.profile);
     if (L.amk) n += " + AddmusicK";
     return n;
 }
