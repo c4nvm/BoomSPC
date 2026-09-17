@@ -15,11 +15,14 @@
 - **More drivers**: Rare's Battletoads build, Sunsoft; Capcom song-list
   games (X2/X3, SF2). Fresh RE needed (nothing public): Opus (Nosferatu,
   Final Stretch...: a nibble-packed stream, editing would mean
-  re-encoding), Sculptured Berlioz (Mortal Kombat II, Secret of Evermore),
-  Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam (Tales of
-  Phantasia, Star Ocean), Popful Mail, Elfaria, Super Tetris 3 (an N-SPC
-  build whose voice pointers are not in the zero page).
+  re-encoding), Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam
+  (Tales of Phantasia, Star Ocean), Popful Mail, Elfaria, Super Tetris 3
+  (an N-SPC build whose voice pointers are not in the zero page).
   `driver/falcom.cpp` is the smallest stream-driver template.
+- Berlioz songs can have up to 20 tracks (DSP voices are handed out per
+  note); only the first eight are shown and edited. A track's relative
+  notes (delta from the last note) are written out as absolute notes when
+  the note before them changes.
 - Neverland: a note held into a repeat pass that spans sections (FB in one
   section, FC in a later one) stays shared; editing it would mean
   inserting list entries.
@@ -282,6 +285,14 @@ V), Heartbeat (DQ3/6). Pitfalls worth remembering:
   IV store song pointers relative to a base, Intelligent Systems builds
   have multi-byte note parameters and table-sized commands (FA/FC/F9),
   Quintet's FF takes three arguments.
+- Blocks bounded by an address rather than a byte (Berlioz F6: play
+  [body, end) n times, the end being wherever the pointer lands): the
+  parser puts a zero-size event at the end address that returns or jumps
+  (`Flow::Return` for a finite count, so the base's call frames count the
+  passes and mark replays in_call; `Flow::Jump` with count 0 forever).
+  On relocation the body is re-found by address then by tick when it is
+  the track's own earlier bytes (flagged at parse time), and the end by
+  the event that ends there; a body in another track stays put.
 - Two-level songs (Neverland: per-voice lists of sections, shared between
   voices and revisited) parse as one program whose section-end events jump
   to the next list entry (target, transpose and entry address stashed in
