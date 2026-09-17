@@ -501,6 +501,7 @@ void test_live_edit(const char* env, const char* label) {
     Engine eng;
     if (std::string err = eng.init(); !err.empty()) { CHECK(false, "engine init: %s", err.c_str()); return; }
     CHECK(eng.load(f).empty(), "engine load");
+    eng.run_silent(0.02);
     EngineSnapshot s;
     eng.snapshot(s);
     Tracker T;
@@ -537,6 +538,7 @@ void test_live_edit(const char* env, const char* label) {
     CHECK(found == semitone, "re-parsed stream has the note at %d (semitone %d, wanted %d)", tick, found, semitone);
     CHECK(T.song()->patterns[0].length_ticks == before, "song length kept: %d -> %d", before, T.song()->patterns[0].length_ticks);
     const int voice_len = T.song()->patterns[0].tracks[v].total_ticks;
+    if (std::getenv("BOOMSPC_DEBUG_EDIT")) { std::fprintf(stderr, "  song %s v%d len %d\n", T.song()->label.c_str(), v, voice_len); for (const Event& e : T.song()->patterns[0].tracks[v].events) if (e.type == EventType::Command && D.cmd_class(e.b[0]) == seq::FxClass::Song) std::fprintf(stderr, "    t%d %04X %s%s\n", e.tick, e.addr, e.in_sub ? "S " : "", D.event_text(e).c_str()); }
     auto events_of = [&]() { const seq::Track& tr = T.song()->patterns[0].tracks[v]; return std::vector<Event>(tr.events.begin(), tr.events.begin() + tr.used_events); };
     std::vector<Event> ev2 = events_of();
     if (D.insert_span(ev2, tick, 3, D.rest_byte())) {
@@ -547,7 +549,9 @@ void test_live_edit(const char* env, const char* label) {
         std::vector<Event> ev3 = events_of();
         CHECK(D.remove_span(ev3, tick, 3, false), "pull the row back out");
         Tracker::Result r3 = T.write_track(eng, 0, v, ev3);
+        if (std::getenv("BOOMSPC_DEBUG_EDIT")) { std::fprintf(stderr, "  after remove: %s -> song %s (%zu songs)\n  hdr:", r3.msg.c_str(), T.song()->label.c_str(), T.songs.size()); EngineSnapshot s3; eng.snapshot(s3); for (int i = 0; i < 20; ++i) std::fprintf(stderr, " %02X", s3.ram[T.song()->order_addr + i]); std::fprintf(stderr, "  v0 %04X\n", T.song()->patterns[0].tracks[v].addr); }
         CHECK(r3.ok && T.song()->patterns[0].tracks[v].total_ticks == voice_len, "length after insert+remove: %d (was %d)", T.song()->patterns[0].tracks[v].total_ticks, voice_len);
+        if (std::getenv("BOOMSPC_DEBUG_EDIT") && T.song()->patterns[0].tracks[v].total_ticks != voice_len) { const seq::Track& tr = T.song()->patterns[0].tracks[v]; for (size_t i = tr.events.size() > 8 ? tr.events.size() - 8 : 0; i < tr.events.size(); ++i) std::fprintf(stderr, "    end %04X+%d t%d %s\n", tr.events[i].addr, tr.events[i].size, tr.events[i].tick, D.event_text(tr.events[i]).c_str()); }
     } else std::printf("  (insert_span not possible at tick %d on this stream)\n", tick);
     {
         int sv = -1, stick = -1, ssemi = -1;
@@ -671,6 +675,18 @@ int main() {
     test_live_edit("SMRPG_SPC", "akao");
     test_snsf_live_edit();
     test_live_edit("MMX_SPC", "capcom");
+    test_live_edit("KONAMI_SPC", "konami");
+    test_live_edit("KONAMI1_SPC", "konami-v1");
+    test_live_edit("HUDSON_SPC", "hudson");
+    test_live_edit("CHUN_SPC", "chun");
+    test_live_edit("MINT_SPC", "mint");
+    test_live_edit("COMPILE_SPC", "compile");
+    test_live_edit("PANDORA_SPC", "pandora");
+    test_live_edit("PRISM_SPC", "prism");
+    test_live_edit("GRAPHRES_SPC", "graphres");
+    test_live_edit("ASCII_SPC", "ascii");
+    test_live_edit("FALCOM_SPC", "falcom");
+    test_live_edit("HEARTBEAT_SPC", "heartbeat");
     test_capcom_stream();
     test_akao_stream();
     test_akao_detect_smrpg();
