@@ -56,6 +56,8 @@ struct Layout {
     uint16_t note_len_table = 0;     // tick counts per length index
     int      note_len_count = 14;    // 13 for SMRPG (index 13 = explicit byte)
     uint8_t  note_lens[16] = {};     // copy of the table, so retime() needs no RAM
+    int      len_plus = 0;           // Seiken Densetsu 3 stores every length minus one (table and explicit byte)
+    bool     header_prefix = false;  // SMRPG / Bahamut Lagoon: 5-byte instrument records before the track pointers
     uint16_t subseq_table = 0;       // SMRPG: 4-byte sequence entries CD/CE jump through
     int      timer0 = 0;             // rev.1-4: timer 0 latch (tempo is a fraction of it)
     bool     rev1_tie_rest_swap = false;

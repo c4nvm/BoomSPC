@@ -180,7 +180,7 @@ void fill_rev4(Layout& L, const uint8_t* ram) {
                 for (int k = 4; k < 20; ++k) { if (ram[h + k] == 0x7A) addw = true; if (ram[h + k] == 0x6F) { ret = true; break; } }
                 if (addw && ret) {
                     set(L.cmds[i], Kind::Jump, "Jmp", "Jump", FxClass::Song);
-                    for (int k = 4; k < 20; ++k) if (ram[h + k] == 0xD4) { if (!L.track_ptr_base) L.track_ptr_base = ram[h + k + 1]; break; }
+                    for (int k = 4; k < 20; ++k) if (ram[h + k] == 0xD4 || ram[h + k] == 0xDB) { if (!L.track_ptr_base || ram[h + k + 1] < L.track_ptr_base) L.track_ptr_base = ram[h + k + 1]; }
                 }
             }
         } else if (argc == 3) {
@@ -263,23 +263,39 @@ Layout detect_layout(const uint8_t* ram) {
         const int vl[] = {0xE7, W, 0x3A, W, 0x68, W, 0x90};
         int p = find_pattern(ram, 0x200, 0x2000, vl, 7);
         const int disp[] = {0x80, 0xA8, W, 0x2D, 0x5D, 0xF5, W, W, 0x28, 0x07};
+        const int disp3[] = {0x80, 0xA8, W, 0x1C, 0x5D, 0x60, 0xE8, 0x00, 0x1F, W, W};
         int q = p >= 0 ? find_pattern(ram, 0x200, 0x2000, disp, 10) : -1;
-        if (p >= 0 && q >= 0 && ram[p + 1] == ram[p + 3] && ram[p + 5] == ram[q + 2]) {
+        int q3 = p >= 0 && q < 0 ? find_pattern(ram, 0x200, 0x2000, disp3, 11) : -1;
+        if (p >= 0 && (q >= 0 || q3 >= 0) && ram[p + 1] == ram[p + 3] && ram[p + 5] == ram[(q >= 0 ? q : q3) + 2]) {
+            const uint8_t zp = ram[p + 1];
+            const bool sd3 = q < 0;
             L.variant = Variant::SMRPG;
             L.tested = true;
             L.first_cmd = ram[p + 5];
             L.lengths = L.first_cmd / 14;
-            L.len_table = rd16(ram, q + 6);
-            L.len_is_total = true;
             L.key_is_remainder = true;
-            const int jt[] = {0xEB, 0x1E, 0x1F, W, W};
-            if (int r = find_pattern(ram, q, q + 64, jt, 5); r >= 0) L.cmd_table = rd16(ram, r + 3);
-            const int nl[] = {0xEB, 0x06, 0xF6, W, W, 0xFD, 0xDB, W};
-            if (int r = find_pattern(ram, 0x200, 0x2000, nl, 8); r >= 0) L.note_len_table = rd16(ram, r + 3);
+            if (!sd3) {
+                L.len_table = rd16(ram, q + 6);
+                L.len_is_total = true;
+                L.header_prefix = true;
+                const int jt[] = {0xEB, 0x1E, 0x1F, W, W};
+                if (int r = find_pattern(ram, q, q + 64, jt, 5); r >= 0) L.cmd_table = rd16(ram, r + 3);
+                const int nl[] = {0xEB, 0x06, 0xF6, W, W, 0xFD, 0xDB, W};
+                if (int r = find_pattern(ram, 0x200, 0x2000, nl, 8); r >= 0) L.note_len_table = rd16(ram, r + 3);
+                const int hd[] = {0x8D, 0x00, 0xF6, W, W, 0x30};
+                if (int r = find_pattern(ram, 0x200, 0x2000, hd, 6); r >= 0) L.header = rd16(ram, r + 3);
+            } else {
+                L.cmd_table = rd16(ram, q3 + 9);
+                const int lt[] = {0x80, 0xA8, L.first_cmd, 0x5D, 0xF5, W, W, 0x30};
+                if (int r = find_pattern(ram, 0x200, 0x2000, lt, 8); r >= 0) L.len_table = rd16(ram, r + 5);
+                const int nl[] = {0xEB, 0x06, 0xF6, W, W, 0xC4, 0x06, 0xD4};
+                if (int r = find_pattern(ram, 0x200, 0x2000, nl, 8); r >= 0) L.note_len_table = rd16(ram, r + 3);
+                const int hd[] = {0xCD, 0x00, 0xE4, W, 0x1C, 0xFD, 0xF5, W, W, 0xD6, W, W, 0xF5, W, W, 0xD6};
+                if (int r = find_pattern(ram, 0x200, 0x2000, hd, 16); r >= 0 && rd16(ram, r + 7) + 1 == rd16(ram, r + 13)) L.header = rd16(ram, r + 7);
+                L.len_plus = 1;
+            }
             L.note_len_count = 13;
-            const int hd[] = {0x8D, 0x00, 0xF6, W, W, 0x30};
-            if (int r = find_pattern(ram, 0x200, 0x2000, hd, 6); r >= 0) L.header = rd16(ram, r + 3);
-            const int tp[] = {0xE4, 0x29, 0xD5, W, W, 0xE4, 0x2A, 0xD5};
+            const int tp[] = {0xE4, zp, 0xD5, W, W, 0xE4, zp + 1, 0xD5};
             if (int r = find_pattern(ram, 0x200, 0x2000, tp, 8); r >= 0) L.track_ptr_base = rd16(ram, r + 3);
             const int bs[] = {0xE4, W, 0x1C, 0x5D, 0xF6, W, W, 0xD5, W, W};
             if (int r = find_pattern(ram, 0x200, 0x2000, bs, 10); r >= 0 && rd16(ram, r + 8) == L.track_ptr_base) L.bgm_slot_var = ram[r + 1];
@@ -289,23 +305,32 @@ Layout detect_layout(const uint8_t* ram) {
                 const int oi[] = {0xE8, W, 0xD6, L.octave_base & 0xFF, L.octave_base >> 8};
                 if (int r = find_pattern(ram, 0x200, 0x2000, oi, 5); r >= 0) L.octave_init = ram[r + 1];
             }
-            const int ins[] = {0xE4, 0x0E, 0xD6, W, W, 0x5D, 0xF5, W, W, 0x1C, 0x5D, 0xF5, W, W};
-            if (int r = find_pattern(ram, 0x200, 0x2000, ins, 14); r >= 0) { L.inst_map = rd16(ram, r + 7); L.sample_pairs = uint16_t(rd16(ram, r + 12) - 1); }
-            const int adsr[] = {0xEB, 0x1F, 0xF5, W, W, 0xD6, 0x60, 0x01, 0xF5, W, W, 0xD6, 0x61, 0x01, 0xF5, W, W, 0xD6, 0x90, 0x01};
-            if (int r = find_pattern(ram, 0x200, 0x2000, adsr, 20); r >= 0) { L.adsr_pairs = rd16(ram, r + 3); L.tune_pairs = rd16(ram, r + 15); }
-            const int mk[] = {0xF8, 0x1F, 0xE4, 0x29, 0xD5, W, W, 0xE4, 0x2A, 0xD5, W, W, 0x6F};
-            if (int r = find_pattern(ram, 0x200, 0x2000, mk, 13); r >= 0) L.mark_base = rd16(ram, r + 5);
-            const int rs[] = {0xE4, 0x29, 0xD5, W, W, 0xE4, 0x2A, 0xD5, W, W, 0x6F};
-            if (int r = find_pattern(ram, 0x200, 0x2000, rs, 11); r >= 0 && rd16(ram, r + 3) != L.mark_base) L.rep_start_base = rd16(ram, r + 3);
-            const int re[] = {0xE4, 0x29, 0xD5, W, W, 0xE4, 0x2A, 0xD5, W, W, 0xF5};
-            if (int r = find_pattern(ram, 0x200, 0x2000, re, 11); r >= 0) L.rep_end_base = rd16(ram, r + 3);
+            const int ins[] = {0x5D, 0xF5, W, W, 0x1C, 0x5D, 0xF5, W, W, 0xD6, W, W};
+            if (int r = find_pattern(ram, 0x200, 0x2000, ins, 12); r >= 0) {
+                L.inst_map = rd16(ram, r + 2); L.sample_pairs = uint16_t(rd16(ram, r + 7) - 1);
+                const int adsr[] = {0xF5, W, W, 0xD6, W, W, 0xF5, W, W, 0xD6, W, W, 0xF5, W, W, 0xD6};
+                for (int a = r + 12; a < r + 48; ++a)
+                    if (find_pattern(ram, a, a + 16, adsr, 16) == a && rd16(ram, a + 1) + 1 == rd16(ram, a + 7)) { L.adsr_pairs = rd16(ram, a + 1); L.tune_pairs = rd16(ram, a + 13); break; }
+            }
+            auto handler_store = [&](uint8_t op) -> uint16_t {
+                if (!L.cmd_table) return 0;
+                int h = rd16(ram, L.cmd_table + (op - L.first_cmd) * 2);
+                for (int i = 0; i < 24; ++i) if (ram[(h + i) & 0xFFFF] == 0xD5) return rd16(ram, h + i + 1);
+                return 0;
+            };
+            L.mark_base = handler_store(0xD7);
+            L.rep_start_base = handler_store(0xD4);
+            L.rep_end_base = handler_store(0xD5);
             const int sq[] = {0x8D, 0x04, 0xCF, 0x2D, 0xDD, 0x60, 0x88, W, 0xFD, 0xAE, 0x6F};
             if (int r = find_pattern(ram, 0x200, 0x2000, sq, 11); r >= 0) L.subseq_table = uint16_t(ram[r + 7] << 8);
             L.tempo_addr = 0xFA;
             if (!L.cmd_table || !L.note_len_table || !L.header || !L.track_ptr_base) return Layout{};
-            for (int i = 0; i < 64; ++i) L.cmds[i].argc = int8_t(std::max(0, (ram[L.len_table + i] & 7) - 1));
+            for (int i = 0; i < 64; ++i) {
+                const uint8_t v = ram[(L.len_table + i) & 0xFFFF];
+                L.cmds[i].argc = int8_t(sd3 ? std::max(0, (v < 0x80 ? v : 1) - 1) : std::max(0, (v & 7) - 1));
+            }
             fill_smrpg(L);
-            for (int i = 0; i < 16; ++i) L.note_lens[i] = ram[(L.note_len_table + i) & 0xFFFF];
+            for (int i = 0; i < 16; ++i) L.note_lens[i] = uint8_t(ram[(L.note_len_table + i) & 0xFFFF] + (i < 13 ? L.len_plus : 0));
             return L;
         }
     }
@@ -377,7 +402,7 @@ Layout detect_layout(const uint8_t* ram) {
         for (int i = 0; i < 0x100 - L.first_cmd; ++i) {
             if (L.cmds[i].kind != Kind::Jump) continue;
             uint16_t h = rd16(ram, L.cmd_table + i * 2);
-            for (int k = 0; k < 24; ++k) if (ram[h + k] == 0xD4) { L.track_ptr_base = ram[h + k + 1]; break; }
+            for (int k = 0; k < 24; ++k) if (ram[h + k] == 0xD4 || ram[h + k] == 0xDB) { if (!L.track_ptr_base || ram[h + k + 1] < L.track_ptr_base) L.track_ptr_base = ram[h + k + 1]; }
             break;
         }
     }
@@ -387,7 +412,7 @@ Layout detect_layout(const uint8_t* ram) {
 
 Layout smrpg_layout_for_tests() {
     Layout L;
-    L.variant = Variant::SMRPG; L.tested = true;
+    L.variant = Variant::SMRPG; L.tested = true; L.header_prefix = true;
     L.first_cmd = 0xC4; L.lengths = 14; L.len_is_total = true; L.key_is_remainder = true;
     L.note_len_count = 13;
     static const uint8_t lens[14] = {0xC0, 0x90, 0x60, 0x48, 0x30, 0x24, 0x20, 0x18, 0x10, 0x0C, 0x08, 0x06, 0x03, 0x0E};
@@ -411,10 +436,10 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 std::string AkaoDriver::name() const {
     switch (L.variant) {
         case Variant::SMRPG: return "Square AKAO (Super Mario RPG)";
-        case Variant::Rev1: return "Square AKAO rev.1 (Final Fantasy IV) - untested";
-        case Variant::Rev2: return "Square AKAO rev.2 (Romancing SaGa) - untested";
-        case Variant::Rev3: return "Square AKAO rev.3 (FF5 / SD2 / FFMQ) - untested";
-        case Variant::Rev4: return "Square AKAO rev.4 (FF6 / Chrono Trigger / ...) - untested";
+        case Variant::Rev1: return "Square AKAO rev.1 (Final Fantasy IV)";
+        case Variant::Rev2: return "Square AKAO rev.2 (Romancing SaGa)";
+        case Variant::Rev3: return "Square AKAO rev.3 (FF5 / SD2 / FFMQ)";
+        case Variant::Rev4: return "Square AKAO rev.4 (FF6 / Chrono Trigger / ...)";
         default: return "Square AKAO";
     }
 }
@@ -527,7 +552,7 @@ seq::Track AkaoDriver::parse_track(const uint8_t* ram, uint16_t start, int octav
             bool tie = key == 12, rest = key == 13;
             if (L.rev1_tie_rest_swap) std::swap(tie, rest);
             int size = 1, dur;
-            if (smrpg && li == L.note_len_count) { dur = ram[(pc + 1) & 0xFFFF]; size = 2; }
+            if (smrpg && li == L.note_len_count) { dur = ram[(pc + 1) & 0xFFFF] + L.len_plus; size = 2; }
             else dur = L.note_lens[std::min(li, 15)];
             if (force_len) { dur = force_len; force_len = 0; }
             Event e = make(tie ? EventType::Tie : rest ? EventType::Rest : EventType::Note, pc, size);
@@ -636,7 +661,7 @@ std::vector<seq::Song> AkaoDriver::find_songs(const uint8_t* ram, const uint8_t*
     std::vector<seq::Song> songs;
     int p = L.header;
     int end_marker = -1;
-    if (L.variant == Variant::SMRPG) {
+    if (L.header_prefix) {
         while (ram[p & 0xFFFF] < 0x80 && p < L.header + 0x200) p += 5;
         p += 1;
     } else if (L.variant == Variant::Rev3 || L.variant == Variant::Rev4) {
@@ -721,7 +746,7 @@ void AkaoDriver::retime(std::vector<Event>& ev) const {
         e.tick = tick;
         if (e.type == EventType::Note || e.type == EventType::Rest || e.type == EventType::Tie) {
             int li = len_of(e.b[0]);
-            e.duration = e.size == 2 ? e.b[1] : L.note_lens[std::min(li, 15)];
+            e.duration = e.size == 2 ? e.b[1] + L.len_plus : L.note_lens[std::min(li, 15)];
             tick += e.duration;
         } else e.duration = 0;
     }
@@ -745,8 +770,8 @@ bool AkaoDriver::set_duration(std::vector<Event>& ev, int i, int dur) const {
     int key = key_of(e.b[0]);
     for (int li = 0; li < L.note_len_count; ++li)
         if (L.note_lens[li] == dur) { e.b[0] = pack(key, li); e.size = 1; e.addr = 0; e.duration = dur; return true; }
-    if (L.variant == Variant::SMRPG && dur <= 255) {
-        e.b[0] = pack(key, 13); e.b[1] = uint8_t(dur); e.size = 2; e.addr = 0; e.duration = dur;
+    if (L.variant == Variant::SMRPG && dur - L.len_plus <= 255 && dur - L.len_plus >= 0) {
+        e.b[0] = pack(key, 13); e.b[1] = uint8_t(dur - L.len_plus); e.size = 2; e.addr = 0; e.duration = dur;
         return true;
     }
     return false;   // not a length this revision can express
