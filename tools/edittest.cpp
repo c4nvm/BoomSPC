@@ -687,6 +687,7 @@ int main() {
     test_live_edit("ASCII_SPC", "ascii");
     test_live_edit("FALCOM_SPC", "falcom");
     test_live_edit("HEARTBEAT_SPC", "heartbeat");
+    test_live_edit("NEVERLAND_SPC", "neverland");
     test_capcom_stream();
     test_akao_stream();
     test_akao_detect_smrpg();

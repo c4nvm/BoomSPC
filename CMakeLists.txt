@@ -70,7 +70,7 @@ set(DRIVER_SOURCES
     src/driver/mint.cpp
     src/driver/compile.cpp
     src/driver/pandora.cpp
-    src/driver/prism.cpp src/driver/graphres.cpp src/driver/ascii.cpp src/driver/falcom.cpp src/driver/heartbeat.cpp
+    src/driver/prism.cpp src/driver/graphres.cpp src/driver/ascii.cpp src/driver/falcom.cpp src/driver/heartbeat.cpp src/driver/neverland.cpp
     src/spc700.cpp
 )
 
