@@ -51,6 +51,30 @@ target_include_directories(snes_spc PUBLIC third_party/snes_spc)
 target_compile_options(snes_spc PRIVATE -w)
 
 # ---------------------------------------------------------------------------
+# Sequence drivers, shared by the app and the tools
+# ---------------------------------------------------------------------------
+set(DRIVER_SOURCES
+    src/driver/seq.cpp
+    src/driver/stream_edit.cpp
+    src/driver/nspc.cpp
+    src/driver/nspc_driver.cpp
+    src/driver/follin.cpp
+    src/driver/capcom.cpp
+    src/driver/rare.cpp
+    src/driver/akao.cpp
+    src/driver/wario.cpp
+    src/driver/stream.cpp
+    src/driver/konami.cpp
+    src/driver/hudson.cpp
+    src/driver/chun.cpp
+    src/driver/mint.cpp
+    src/driver/compile.cpp
+    src/driver/pandora.cpp
+    src/driver/prism.cpp src/driver/graphres.cpp src/driver/ascii.cpp src/driver/falcom.cpp src/driver/heartbeat.cpp
+    src/spc700.cpp
+)
+
+# ---------------------------------------------------------------------------
 # boomspc
 # ---------------------------------------------------------------------------
 add_executable(boomspc
@@ -63,16 +87,7 @@ add_executable(boomspc
     src/brr.cpp
     src/wav.cpp
     src/tracker.cpp
-    src/spc700.cpp
-    src/driver/nspc.cpp
-    src/driver/nspc_driver.cpp
-    src/driver/follin.cpp
-    src/driver/capcom.cpp
-    src/driver/rare.cpp
-    src/driver/stream_edit.cpp
-    src/driver/akao.cpp
-    src/driver/wario.cpp
-    src/driver/seq.cpp
+    ${DRIVER_SOURCES}
     src/ui/ui.cpp
     src/ui/player_panel.cpp
     src/ui/voices_panel.cpp
@@ -115,31 +130,33 @@ target_include_directories(spc2wav PRIVATE src)
 target_link_libraries(spc2wav PRIVATE snes_spc)
 target_compile_options(spc2wav PRIVATE -Wall -Wextra)
 
-add_executable(spcdump tools/spcdump.cpp src/spc_file.cpp src/driver/nspc.cpp src/driver/nspc_driver.cpp src/driver/follin.cpp src/driver/akao.cpp src/driver/rare.cpp src/driver/capcom.cpp src/driver/wario.cpp src/driver/seq.cpp src/driver/stream_edit.cpp src/spc700.cpp)
+add_executable(spcdump tools/spcdump.cpp src/spc_file.cpp ${DRIVER_SOURCES} src/spc700.cpp)
 target_include_directories(spcdump PRIVATE src)
 target_link_libraries(spcdump PRIVATE snes_spc)
 target_compile_options(spcdump PRIVATE -Wall -Wextra)
 
 # ---------------------------------------------------------------------------
 # parsecheck: verifies a driver's parse against the emulator's real playback
-add_executable(parsecheck tools/parsecheck.cpp src/spc_file.cpp src/driver/nspc.cpp src/driver/nspc_driver.cpp src/driver/follin.cpp src/driver/akao.cpp src/driver/rare.cpp src/driver/capcom.cpp src/driver/wario.cpp src/driver/seq.cpp src/driver/stream_edit.cpp)
+add_executable(parsecheck tools/parsecheck.cpp src/spc_file.cpp ${DRIVER_SOURCES})
 target_include_directories(parsecheck PRIVATE src)
 target_link_libraries(parsecheck PRIVATE snes_spc)
 
 # ---------------------------------------------------------------------------
 # edittest: headless checks of the tracker edit primitives
-add_executable(edittest tools/edittest.cpp src/project.cpp src/tracker.cpp src/driver/nspc.cpp src/driver/nspc_driver.cpp src/driver/follin.cpp src/driver/akao.cpp src/driver/rare.cpp src/driver/capcom.cpp src/driver/wario.cpp src/driver/seq.cpp src/driver/stream_edit.cpp src/brr.cpp src/engine.cpp src/snes.cpp src/cpu65816.cpp src/snsf.cpp src/spc_file.cpp src/wav.cpp)
+add_executable(edittest tools/edittest.cpp src/project.cpp src/tracker.cpp ${DRIVER_SOURCES} src/brr.cpp src/engine.cpp src/snes.cpp src/cpu65816.cpp src/snsf.cpp src/spc_file.cpp src/wav.cpp)
 target_include_directories(edittest PRIVATE src)
 target_link_libraries(edittest PRIVATE snes_spc SDL2::SDL2 ZLIB::ZLIB)
 
-# ramtrace: prints watched RAM bytes over time (driver reverse-engineering aid)
-add_executable(ramtrace tools/ramtrace.cpp src/spc_file.cpp)
-target_include_directories(ramtrace PRIVATE src)
-target_link_libraries(ramtrace PRIVATE snes_spc)
+# ramtrace / ptrfind: RAM watch and live-pointer search (driver reverse-engineering aids)
+foreach(t ramtrace ptrfind)
+    add_executable(${t} tools/${t}.cpp src/spc_file.cpp)
+    target_include_directories(${t} PRIVATE src)
+    target_link_libraries(${t} PRIVATE snes_spc)
+endforeach()
 
 # MinGW: carry the C++ runtime inside the executables (only SDL2.dll and zlib remain).
 if(MINGW)
-    foreach(t boomspc spc2wav spcdump parsecheck edittest ramtrace)
+    foreach(t boomspc spc2wav spcdump parsecheck edittest ramtrace ptrfind)
         target_link_options(${t} PRIVATE -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic)
     endforeach()
 endif()

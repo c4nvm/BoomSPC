@@ -28,7 +28,7 @@ struct Tracker {
     double                 next_repick = 0;
     // Game rips usually carry the whole music bank; with this on, songs other
     // than the current one count as free space when a track has to grow.
-    bool                   reclaim_other_songs = false;
+    mutable bool           reclaim_other_songs = false;
 
     void reset();
     // Full driver detection + song discovery from a RAM snapshot.
@@ -66,5 +66,9 @@ struct Tracker {
 
     // Largest run of zero bytes that is not stack, echo buffer, directory or
     // sample data. Returns -1 if nothing big enough exists.
+    static int extent_of(const seq::Track& t);
+    void release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, int len);
     int find_free_space(const EngineSnapshot& s, int need) const;
+    std::vector<bool> free_map(const EngineSnapshot& s, uint8_t fill) const;
+    bool bytes_free(const EngineSnapshot& s, int from, int len) const;
 };

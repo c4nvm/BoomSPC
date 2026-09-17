@@ -10,6 +10,17 @@
 #include "capcom.hpp"
 #include "rare.hpp"
 #include "follin.hpp"
+#include "chun.hpp"
+#include "compile.hpp"
+#include "hudson.hpp"
+#include "konami.hpp"
+#include "mint.hpp"
+#include "pandora.hpp"
+#include "prism.hpp"
+#include "graphres.hpp"
+#include "ascii.hpp"
+#include "falcom.hpp"
+#include "heartbeat.hpp"
 #include "nspc.hpp"
 #include "wario.hpp"
 
@@ -104,7 +115,7 @@ void Driver::unroll(std::vector<Event>& ev) const {
         if (e.type == EventType::SubCall || is_frame_command(e)) continue;
         Event c = e;
         if (c.in_sub) c.addr = 0;
-        c.in_sub = false; c.nest = 0; c.sub_iter = 0;
+        c.in_sub = false; c.nest = 0; c.sub_iter = 0; c.in_call = false;
         out.push_back(c);
     }
     ev.swap(out);
@@ -132,6 +143,7 @@ bool Driver::unroll_at(std::vector<Event>& ev, int tick) const {
         const int n = call_count(cmd);
         const int level = ev[size_t(a)].nest;
         const uint16_t body = ev[size_t(a)].addr;
+        for (int k = a + 1; k <= b; ++k) if (ev[size_t(k)].nest < level) { b = k - 1; break; }   // the caller's level resumes after the body
         std::vector<int> seg;   // first event index of each pass
         for (int k = a; k <= b; ++k) if (ev[size_t(k)].addr == body && ev[size_t(k)].nest == level && (seg.empty() || k > seg.back())) seg.push_back(k);
         if (seg.empty() || seg[0] != a) seg.insert(seg.begin(), a);
@@ -146,7 +158,8 @@ bool Driver::unroll_at(std::vector<Event>& ev, int tick) const {
         }
         for (int k = seg_lo; k <= seg_hi; ++k) {
             Event c = ev[size_t(k)];
-            if (c.nest == level) { c.in_sub = false; c.addr = 0; c.sub_iter = 0; }
+            if (c.nest == level && is_return_command(c)) continue;
+            if (c.nest >= level) { c.in_sub = c.sub_iter > 0; c.addr = 0; if (c.nest == level) c.in_call = false; }
             if (c.nest > 0) --c.nest;
             out.push_back(c);
         }
@@ -159,14 +172,14 @@ bool Driver::unroll_at(std::vector<Event>& ev, int tick) const {
         int start = a;
         if (ev[size_t(a)].addr)
             for (int j = a - 1; j >= 0; --j) if (!ev[size_t(j)].in_sub && ev[size_t(j)].addr == ev[size_t(a)].addr) start = j;
-        while (start > 0 && !ev[size_t(start - 1)].in_sub && (ev[size_t(start - 1)].type == EventType::SubCall || is_frame_command(ev[size_t(start - 1)]))) --start;
+        while (start > 0 && !ev[size_t(start - 1)].in_sub && ev[size_t(start - 1)].nest + 1 >= ev[size_t(a)].nest && (ev[size_t(start - 1)].type == EventType::SubCall || is_frame_command(ev[size_t(start - 1)]))) --start;   // the repeat's own start, not an enclosing one
         for (int k = 0; k < int(ev.size()); ++k) {
             const Event& e = ev[size_t(k)];
             if (k >= start && k <= b) {
                 if (e.type == EventType::SubCall || is_frame_command(e)) continue;
                 Event c = e;
                 if (c.in_sub) c.addr = 0;
-                c.in_sub = false; c.nest = 0; c.sub_iter = 0;
+                c.in_sub = false; c.nest = 0; c.sub_iter = 0; c.in_call = false;
                 out.push_back(c);
             } else out.push_back(e);
         }
@@ -219,6 +232,17 @@ std::unique_ptr<Driver> detect_driver(const uint8_t* ram, const uint8_t* dsp) {
     if (std::unique_ptr<Driver> d = akao::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = rare::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = capcom::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = konami::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = hudson::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = chun::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = mint::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = compile::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = pandora::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = prism::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = graphres::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = ascii::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = falcom::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = heartbeat::detect(ram)) return d;
     return nullptr;
 }
 

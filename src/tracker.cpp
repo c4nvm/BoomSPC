@@ -66,9 +66,12 @@ void Tracker::reparse(const EngineSnapshot& s) {
     uint16_t addr = sg->order_addr;
     std::vector<seq::Song> fresh = drv->find_songs(s.ram, s.dsp);
     for (size_t i = 0; i < fresh.size(); ++i)
-        if (fresh[i].order_addr == addr) { songs = std::move(fresh); song_index = int(i); return; }
-    songs = std::move(fresh);
-    song_index = drv->pick_current_song(s.ram, songs);
+        if (fresh[i].order_addr == addr) { songs = std::move(fresh); song_index = int(i); break; }
+    if (song_index < 0 || song_index >= int(songs.size()) || songs[size_t(song_index)].order_addr != addr) {
+        songs = std::move(fresh);
+        song_index = drv->pick_current_song(s.ram, songs);
+    }
+    if (song()) drv->locate(s.ram, *song(), nullptr);   // parsing the other songs may have left the driver on one of them
 }
 
 void Tracker::remove_event(const seq::Driver& d, std::vector<Event>& ev, int index) {
@@ -77,17 +80,19 @@ void Tracker::remove_event(const seq::Driver& d, std::vector<Event>& ev, int ind
     d.retime(ev);
 }
 
-int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
+std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const {
     std::vector<bool> reserved(0x10000, false);
     int driver_end = 0x200;
     for (const seq::Song& sg : songs) driver_end = std::max(driver_end, int(sg.order_addr));
     for (const seq::Song& sg : songs) driver_end = std::min(driver_end, int(sg.order_addr));
-    for (int a = 0; a < driver_end; ++a) reserved[a] = true;
     int lo = 0x200, hi = 0x10000;
     if (drv) drv->free_space_bounds(lo, hi);
+    if (lo != 0x200) driver_end = std::min(driver_end, lo);
+    for (int a = 0; a < driver_end; ++a) reserved[a] = true;
     const bool spc_space = !drv || drv->spc_ram_space();
     if (spc_space) for (int a = 0xFFC0; a < 0x10000; ++a) reserved[a] = true;
     int esa = s.dsp[0x6D] << 8, edl = s.dsp[0x7D] & 0x0F;
+    if (drv) edl = std::clamp(drv->echo_length(s.ram, edl), 0, 15);
     int echo_len = edl ? edl * 2048 : 4;
     if (spc_space) for (int a = esa; a < std::min(0x10000, esa + echo_len); ++a) reserved[a] = true;
     int dir = spc_space ? s.dsp[0x5D] << 8 : 0;
@@ -140,19 +145,40 @@ int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
         drv->reclaimable_ranges(s.ram, extra);
         for (auto& r : extra) for (int a = r.first; a < r.second && a < 0x10000; ++a) if (!reserved[a] || reclaimable[a]) sacrificial[a] = true;
     }
-    for (int pass = 0; pass < 2; ++pass) {
-        const uint8_t fill = pass == 0 ? 0x00 : 0xFF;
-        int best = -1, best_len = 0;
-        int run = 0;
-        for (int a = lo; a < hi; ++a) {
-            bool free = (!reserved[a] && (s.ram[a] == 0 || s.ram[a] == fill)) || (reclaim_other_songs && reclaimable[a]) || sacrificial[a];
-            if (free) ++run; else run = 0;
-            if (run > best_len) { best_len = run; best = a - run + 1; }
+    std::vector<bool> free(0x10000, false);
+    for (int a = lo; a < hi; ++a)
+        free[size_t(a)] = (!reserved[a] && (s.ram[a] == 0 || s.ram[a] == fill)) || (reclaim_other_songs && reclaimable[a]) || sacrificial[a];
+    return free;
+}
+
+int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
+    const bool reclaim = reclaim_other_songs;
+    for (int pass = 0; pass < (reclaim ? 2 : 1); ++pass) {
+        reclaim_other_songs = pass == 1;
+        for (uint8_t fill : {uint8_t(0x00), uint8_t(0xFF)}) {
+            const std::vector<bool> free = free_map(s, fill);
+            int best = -1, best_len = 0, run = 0;
+            for (int a = 0; a < 0x10000; ++a) {
+                if (free[size_t(a)]) ++run; else run = 0;
+                if (run > best_len) { best_len = run; best = a - run + 1; }
+            }
+            if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "find_free_space(%d): best run %d at $%04X (fill %02X%s)\n", need, best_len, best, fill, pass ? ", reclaiming" : "");
+            if (best_len >= need + 2) { reclaim_other_songs = reclaim; return best + 1; }
         }
-        if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "find_free_space(%d): best run %d at $%04X (fill %02X)\n", need, best_len, best, fill);
-        if (best_len >= need + 2) return best + 1;
     }
+    reclaim_other_songs = reclaim;
     return -1;
+}
+
+bool Tracker::bytes_free(const EngineSnapshot& s, int from, int len) const {
+    if (from + len > 0x10000) return false;
+    for (uint8_t fill : {uint8_t(0x00), uint8_t(0xFF)}) {
+        const std::vector<bool> free = free_map(s, fill);
+        bool ok = true;
+        for (int a = from; a < from + len && ok; ++a) ok = free[size_t(a)];
+        if (ok) return true;
+    }
+    return false;
 }
 
 bool Tracker::default_args(const seq::Driver& d, const seq::Pattern& pat, int voice, int tick, uint8_t* bytes, int size) {
@@ -190,6 +216,37 @@ int Tracker::find_space_or_reclaim(const EngineSnapshot& s, int need, bool& recl
     return at;
 }
 
+int Tracker::extent_of(const seq::Track& t) {
+    int extent = 0;
+    uint16_t next = t.addr;
+    for (const Event& e : t.events) {
+        if (e.in_sub) continue;
+        if (e.addr != next) break;
+        extent += e.size; next = uint16_t(next + e.size);
+    }
+    return extent;
+}
+
+// Zeroes the bytes a relocated stream left behind, except any that other
+// tracks still play, so the space can be handed out again.
+void Tracker::release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, int len) {
+    (void)s;
+    std::vector<bool> used(0x10000, false);
+    for (const seq::Song& sg : songs)
+        for (const seq::Pattern& p : sg.patterns)
+            for (const seq::Track& t : p.tracks) {
+                if (!t.addr || t.addr == at) continue;
+                for (const Event& e : t.events) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
+            }
+    for (const seq::Song& sg : songs)
+        for (const seq::Pattern& p : sg.patterns)
+            for (const seq::Track& t : p.tracks)
+                if (t.addr == at) for (const Event& e : t.events) if (e.in_sub) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
+    const uint8_t zero = 0;
+    for (int a = at; a < at + len && a < 0x10000; ++a)
+        if (!used[size_t(a)]) eng.write_ram(uint16_t(a), &zero, 1);
+}
+
 Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, std::vector<Event> events) {
     Result r;
     seq::Song* sg = song();
@@ -215,15 +272,9 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         uint16_t dest = t.addr;
         bool relocated = false;
         if (restructure) {
-            int extent = 0;
-            uint16_t next = t.addr;
-            for (const Event& e : t.events) {
-                if (e.in_sub) continue;
-                if (e.addr != next) break;
-                extent += e.size; next = uint16_t(next + e.size);
-            }
+            const int extent = extent_of(t);
             bytes = drv->serialize_relocated(events, t.addr, &offsets);
-            if (int(bytes.size()) > extent) {
+            if (int(bytes.size()) > extent && !bytes_free(snap, t.addr + extent, int(bytes.size()) - extent)) {
                 bool reclaimed = false;
                 int at = find_space_or_reclaim(snap, int(bytes.size()), reclaimed);
                 if (at < 0) { r.msg = "stream grew and no free RAM was found, even in the other songs' data"; return r; }
@@ -259,12 +310,28 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
                 remap.pairs.push_back({uint16_t(events[i].addr + events[i].size), uint16_t(dest + offsets[i] + events[i].size)});
             }
             auto move_pointer = [&](const uint8_t* ram, const seq::Position& at_pos, Engine::WriteTarget target) {
-                if (!at_pos.valid || at_pos.voice_event[voice] < 0 || at_pos.voice_event[voice] >= int(t.events.size())) return true;
+                if (!at_pos.valid) return true;
+                if (at_pos.voice_event[voice] < 0 || at_pos.voice_event[voice] >= int(t.events.size())) {
+                    // Caught between commands: keep the pointer, remap the stack.
+                    if (!at_pos.voice_ptr[voice] || !drv->remaps_stack()) return true;
+                    std::vector<std::pair<uint16_t, uint8_t>> lp;
+                    drv->live_state_writes(ram, at_pos, voice, at_pos.voice_ptr[voice], remap, lp);
+                    for (auto& w : lp) eng.write_ram(w.first, &w.second, 1, target);
+                    return true;
+                }
                 const Event& at = t.events[size_t(at_pos.voice_event[voice])];
                 int best_i = -1;
-                for (size_t i = 0; i < events.size(); ++i)
-                    if (!events[i].in_sub && events[i].duration > 0 && offsets[i] >= 0 && events[i].tick >= at.tick) { best_i = int(i); break; }
+                auto usable = [&](size_t i) { return !events[i].in_sub && events[i].duration > 0 && offsets[i] >= 0; };
+                for (size_t i = 0; i < events.size() && best_i < 0 && at.addr; ++i)
+                    if (usable(i) && events[i].addr == at.addr) best_i = int(i);
+                for (size_t i = 0; i < events.size() && best_i < 0; ++i)
+                    if (usable(i) && events[i].tick + events[i].duration == at.tick + at.duration) best_i = int(i);
+                for (size_t i = 0; i < events.size() && best_i < 0; ++i)
+                    if (usable(i) && events[i].tick >= at.tick) best_i = int(i);
+                for (size_t i = events.size(); i-- > 0 && best_i < 0;)
+                    if (usable(i)) best_i = int(i);
                 const bool can_move = at.in_sub ? drv->remaps_stack() : (best_i >= 0 && (at.nest == 0 || drv->remaps_stack()));
+                if (std::getenv("BOOMSPC_DEBUG_EDIT")) std::fprintf(stderr, "%s move: at event %d tick %d+%d best %d can_move %d\n", target == Engine::kLiveOnly ? "live" : "image", at_pos.voice_event[voice], at.tick, at.duration, best_i, can_move);
                 if (!can_move) return false;
                 std::vector<std::pair<uint16_t, uint8_t>> lp;
                 uint16_t fallback = at.in_sub ? at_pos.voice_ptr[voice] : uint16_t(dest + offsets[size_t(best_i)] + events[size_t(best_i)].size);
@@ -275,6 +342,12 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
             };
             if (!move_pointer(snap.ram, live, Engine::kLiveOnly)) moved_note = "";
             move_pointer(eng.image_ram(), image, Engine::kImageOnly);
+            if (relocated && *moved_note) {
+                release_bytes(snap, eng, t.addr, extent_of(t));
+                std::vector<std::pair<uint16_t, uint8_t>> ptr;   // a pointer may live inside the released bytes
+                drv->track_pointer_writes(*sg, pattern_idx, voice, dest, ptr);
+                for (auto& w : ptr) eng.write_ram(w.first, &w.second, 1);
+            }
             ++written;
         }
         eng.end_edit();
@@ -321,8 +394,10 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
     eng.begin_edit();
     eng.write_ram(dest, bytes.data(), bytes.size());
     if (relocated) {
-        uint8_t ptr[2] = {uint8_t(dest & 0xFF), uint8_t(dest >> 8)};
-        eng.write_ram(uint16_t(pat.addr + voice * 2), ptr, 2);
+        std::vector<std::pair<uint16_t, uint8_t>> ptr;
+        drv->track_pointer_writes(*sg, pattern_idx, voice, dest, ptr);
+        if (ptr.empty()) { uint8_t w[2] = {uint8_t(dest & 0xFF), uint8_t(dest >> 8)}; eng.write_ram(uint16_t(pat.addr + voice * 2), w, 2); }
+        for (auto& w : ptr) eng.write_ram(w.first, &w.second, 1);
     }
     eng.end_edit();
 

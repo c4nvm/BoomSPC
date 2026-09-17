@@ -245,13 +245,27 @@ std::vector<uint8_t> Driver::serialize_relocated(const std::vector<Event>& ev, u
     for (int i : main) {
         if (drop[size_t(i)]) continue;
         Event e = ev[size_t(i)];
-        int t = e.type == EventType::Command ? jump_target(e) : -1;
-        if (t > 0)
-            for (int j : main)
-                if (ev[size_t(j)].addr == t && off[size_t(j)] >= 0) { set_jump_target(e, uint16_t(dest + off[size_t(j)])); break; }
+        int j = relocated_target(ev, i, off);
+        if (j >= 0) set_jump_target(e, uint16_t(dest + off[size_t(j)]));
         for (int k = 0; k < e.size; ++k) out.push_back(e.b[k]);
     }
     return out;
+}
+
+int Driver::relocated_target(const std::vector<Event>& ev, int i, const std::vector<int>& off) const {
+    const Event& e = ev[size_t(i)];
+    const int t = e.type == EventType::Command ? jump_target(e) : -1;
+    if (t <= 0 && e.target_tick < 0) return -1;
+    if (t > 0) {
+        for (size_t j = 0; j < ev.size(); ++j)
+            if (!ev[j].in_sub && ev[j].addr == t && off[j] >= 0) return int(j);
+        for (const Event& o : ev) if (o.addr == t && o.in_call) return -1;   // a called section that stays where it is
+    }
+    if (e.target_tick >= 0)
+        for (int pass = 0; pass < 2; ++pass)
+            for (size_t j = 0; j < ev.size(); ++j)
+                if (int(j) != i && !ev[j].in_sub && off[j] >= 0 && ev[j].tick == e.target_tick && ((e.target_timed == (pass == 0)) ? ev[j].duration > 0 : ev[j].type == EventType::Command)) return int(j);
+    return -1;
 }
 
 void Driver::live_state_writes(const uint8_t* ram, const Position& pos, int voice, uint16_t ptr, const Remap& remap, std::vector<std::pair<uint16_t, uint8_t>>& out) const {

@@ -29,6 +29,10 @@ struct Event {
     int       pitch = -1;  // resolved semitone from C-0 for drivers whose note bytes depend on
                            // state (AKAO: octave), else -1 (name the byte with Driver::note_semitone)
     uint8_t   nest = 0;    // call/repeat frames open when this event runs (stream drivers)
+    int       target_tick = -1;   // jump commands: tick of the event they target, so an edited
+                                  // (readdressed) target can still be found when relocating
+    bool      target_timed = false;   // ... and whether that event was a note / rest (else a command)
+    bool      in_call = false;    // inside a called section (stream drivers)
 
     uint8_t   note() const { return b[0]; }
 };
@@ -248,6 +252,9 @@ struct Driver {
     // skipped (the calls stay), forward jumps that only chain the trace are
     // dropped and the loop jump is re-targeted. Default = serialize_track.
     virtual std::vector<uint8_t> serialize_relocated(const std::vector<Event>& ev, uint16_t dest, std::vector<int>* offsets = nullptr) const;
+    // Index of the event jump command ev[i] lands on in the relocated
+    // stream (by address, else by the tick the target had), -1 if none.
+    int relocated_target(const std::vector<Event>& ev, int i, const std::vector<int>& off) const;
     // RAM writes that point voice `voice` of `song`'s pattern at `dest`.
     // Default: the N-SPC style pattern header (8 words).
     virtual void track_pointer_writes(const Song& song, int pattern_idx, int voice, uint16_t dest, std::vector<std::pair<uint16_t, uint8_t>>& out) const;
@@ -269,6 +276,9 @@ struct Driver {
     // edited through a synthesised window): the free-space search then
     // skips the SPC reservations (DSP directory, echo, samples).
     virtual bool spc_ram_space() const { return true; }
+    // Echo buffer length in 2 KB units when the songs set one larger than
+    // the DSP currently holds (the buffer grows when it next wraps).
+    virtual int echo_length(const uint8_t* ram, int dsp_edl) const { (void)ram; return dsp_edl; }
     // Address range the free-space search may hand out.
     virtual void free_space_bounds(int& lo, int& hi) const { lo = 0x200; hi = 0x10000; }
     // ROM bank whose window the engine must show for this song (-1 = not banked).
@@ -278,6 +288,9 @@ struct Driver {
     // and ends, loop breaks). Removing them, together with marking every
     // expanded pass as plain data, flattens a voice.
     virtual bool is_frame_command(const Event& e) const { (void)e; return false; }
+    // The command that returns from a called body (dropped when the body is
+    // written out inline); End events are never returns.
+    virtual bool is_return_command(const Event& e) const { (void)e; return false; }
     // Repeat count of a call command (SubCall / a frame command that calls
     // a body n times), 0 when `e` is not a call; and its rewrite.
     virtual int  call_count(const Event& e) const { return e.type == EventType::SubCall ? (e.b[3] ? e.b[3] : 256) : 0; }
