@@ -127,7 +127,22 @@ tools/                         spc2wav, spcdump, parsecheck, edittest
 docs/ROADMAP.md                driver format notes and stuff that isnt done yet
 ```
 
-## license
+## credits / license
 
-mit. `third_party/snes_spc` is lgpl 2.1 and linked statically. imgui is mit,
-stb_image is public domain.
+mit. the parts that arent mine:
+
+- `third_party/snes_spc` by shay green (blargg), lgpl 2.1, linked statically
+- dear imgui (omar cornut, mit), sdl2 (zlib license), zlib (gailly / adler)
+- stb_image (sean barrett, public domain)
+- the spc700 opcode table comes from the snesdev wiki (cc0). the 64 byte
+  spc700 ipl boot rom that the snsf player needs is sony's
+- bundled pixel fonts in `assets/fonts`: mega man x and quake pc by patrick
+  h. lauke (cc by 3.0), the plok fonts by paradigmthegreat (cc by-sa 3.0),
+  all from fontstruct. licenses are in that folder
+- the akao and capcom drivers were checked against loveemu's akaospc and
+  capspc (mit). the n-spc stuff leans on the smw / addmusick / earthbound
+  community disassemblies
+- editing model and colors are inspired by furnace and openmpt, the piano
+  roll gestures by famistudio. no code from any of them
+- the plok / equinox, rare, capcom and warios woods drivers were reverse
+  engineered from the rips for this project

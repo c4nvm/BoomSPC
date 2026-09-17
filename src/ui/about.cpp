@@ -158,12 +158,14 @@ void draw_about_window(App& app) {
     ImGui::SeparatorText("Credits");
     ImGui::Bullet(); text_wrapped("BoomSPC by c4nvm");
     ImGui::Bullet(); text_wrapped("Sound core: snes_spc 0.9.0 by Shay Green (blargg), LGPL 2.1");
-    ImGui::Bullet(); text_wrapped("UI: Dear ImGui (docking branch) by Omar Cornut, MIT; SDL2, zlib licence");
+    ImGui::Bullet(); text_wrapped("UI: Dear ImGui (docking branch) by Omar Cornut, MIT; SDL2 (zlib licence); zlib by Jean-loup Gailly and Mark Adler");
     ImGui::Bullet(); text_wrapped("stb_image by Sean Barrett, public domain");
-    ImGui::Bullet(); text_wrapped("SPC700 opcode table from the SNESdev wiki, CC0");
-    ImGui::Bullet(); text_wrapped("Editing model and colours inspired by Furnace (tildearrow) and OpenMPT");
+    ImGui::Bullet(); text_wrapped("SPC700 opcode table from the SNESdev wiki, CC0; the SPC700 IPL boot ROM (64 bytes) is Sony's");
+    ImGui::Bullet(); text_wrapped("Bundled pixel fonts: Mega Man X and Quake PC by Patrick H. Lauke (CC BY 3.0), Plok! fonts by ParadigmTheGreat (CC BY-SA 3.0), from FontStruct");
+    ImGui::Bullet(); text_wrapped("Editing model and colours inspired by Furnace (tildearrow) and OpenMPT; piano roll gestures inspired by FamiStudio (BleuBleu)");
     ImGui::Bullet(); text_wrapped("N-SPC knowledge: the SMW / AddmusicK / EarthBound community disassemblies");
-    ImGui::Bullet(); text_wrapped("Software Creations driver reverse-engineered for BoomSPC from Plok!\n(music by Tim and Geoff Follin, driver by Software Creations)");
+    ImGui::Bullet(); text_wrapped("AKAO and Capcom format references: loveemu's akaospc and capspc (MIT)");
+    ImGui::Bullet(); text_wrapped("Software Creations, Rare, Capcom and Wario's Woods drivers reverse-engineered for BoomSPC from the game rips\n(Plok! music by Tim and Geoff Follin, driver by Software Creations)");
     ImGui::Separator();
     text_wrapped("Music in .spc rips belongs to its composers and publishers. BoomSPC only edits copies you load.");
     panel_end();
