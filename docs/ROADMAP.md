@@ -12,10 +12,16 @@
   in ui/arrangement.cpp is the input.
 - **Grooves**: uneven row lengths (Wario's Woods writes 11-tick beats split
   6+5); the row<->tick mapping is one function today.
-- **More drivers**: Konami, Rare's Battletoads build, Opus, Hudson,
-  Sunsoft; Capcom song-list games (X2/X3, SF2); AKAO on FF4-6 / Chrono
-  Trigger (rev.4 handler fingerprints); N-SPC prototype builds with shifted
-  opcodes. `driver/capcom.cpp` is the smallest template.
+- **More drivers**: Rare's Battletoads build, Sunsoft; Capcom song-list
+  games (X2/X3, SF2). Fresh RE needed (nothing public): Neverland (Lufia
+  1/2), Opus (Nosferatu, Final Stretch...: a nibble-packed stream, editing
+  would mean re-encoding), Sculptured Berlioz (Mortal Kombat II, Secret of
+  Evermore), Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam (Tales
+  of Phantasia, Star Ocean), Popful Mail, Elfaria, Energy Breaker, Super
+  Tetris 3 (an N-SPC build whose voice pointers are not in the zero page).
+  `driver/falcom.cpp` is the smallest stream-driver template.
+- Stream drivers on packed rips (Konami, Dragon Quest III) run out of free
+  RAM for grown streams; only the other songs' bytes can be reclaimed.
 - N-SPC order-list editing, pattern length changes, a "new blank song";
   `make_slide` for engines other than N-SPC; percussion note entry.
 - Muted notes (piano roll) are session-only, not saved in `.boomspc`.
@@ -241,6 +247,38 @@ in `capcom.hpp`; the points that were not obvious:
   per-note restart modes, 9E/9F key-on / legato, A0 skip transpose once,
   AA/AB noise, AC-AF echo volume/feedback/FIR, B0 pan sweep, B1/B2 pitch
   mod, B3 volume+pan, B5 sound effect, B7 silence, B8 extended, B9 stack check.
+
+## The stream drivers (2026-09)
+
+`src/driver/stream.*` is a table-driven base for one-program-per-voice
+drivers; each format file supplies `decode`, `spec`, `track_start`,
+`song_headers` and the live pointer layout, everything else (parsing with
+call/repeat frames, song scanning, position, retime, editing, relocation)
+is shared. Every driver's header comment holds the format notes; all were
+verified with `parsecheck` on complete Zophar rip sets and the live edit
+test. Konami v1-v6, Hudson v0-v2, Chunsoft (winter/summer), Square (all
+revisions incl. Suzuki's SD3/Bahamut build), Mint, Compile, Pandora Box,
+Prism Kikaku, Graphic Research, ASCII (Ardy Lightfoot build), Falcom (Ys
+V), Heartbeat (DQ3/6). Pitfalls worth remembering:
+
+- A driver's pointer copy can start mid-stream (Konami): the program loops
+  by running into bytes it already played; the parser synthesises a jump
+  event so relocation keeps the loop.
+- Relocated jumps are re-found by address, then (edited targets) by tick;
+  a target inside a called section that still exists keeps its address.
+- Optional length bytes distinguished by value (ASCII) must not be seen
+  when an event is re-decoded from its own bytes: unused bytes hold $80.
+- Repeat counters may live inside the stream (Falcom): a relocated copy
+  carries the live count with it, so playback can move to it.
+- A voice pinned to a fixed address (Graphic Research voice 0) is moved
+  with a jump trampoline written after the old bytes are released.
+- Echo buffers grow when a song sets a larger EDL than the DSP holds at
+  snapshot time (`echo_length`); free space above ESA is not free.
+- N-SPC licensee builds: command base and length table come from the
+  driver's dispatch code (VGMTrans-style signatures), Konami and Falcom Ys
+  IV store song pointers relative to a base, Intelligent Systems builds
+  have multi-byte note parameters and table-sized commands (FA/FC/F9),
+  Quintet's FF takes three arguments.
 
 ## What was learned about N-SPC (worth keeping)
 

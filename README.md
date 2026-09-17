@@ -10,11 +10,22 @@ sequencer runs on the snes cpu instead of the spc) with a built in 65816.
 
 drivers it knows right now:
 
-- nintendo n-spc (smw, zelda, earthbound, kirby, addmusick stuff)
+- nintendo n-spc (smw, zelda, earthbound, kirby, addmusick stuff) plus the
+  licensee builds: intelligent systems (fire emblem, tetris attack), human
+  (clock tower), tose, falcom (ys iv), lemmings, quintet (terranigma),
+  konami (castlevania iv)
 - software creations / follin (plok, equinox)
-- square akao (super mario rpg)
+- square akao (super mario rpg, ff4/5/6, chrono trigger, secret of mana,
+  romancing saga, live a live, front mission, seiken densetsu 3, bahamut lagoon)
 - rare (dkc 1/2/3, killer instinct)
 - capcom (mega man x)
+- konami (contra iii, axelay, dracula x, goemon 2, sparkster, parodius, batman returns)
+- hudson (super bomberman 2-5, tengai makyou zero)
+- chunsoft (dragon quest v, torneko, kamaitachi, otogirisou)
+- heartbeat (dragon quest iii and vi)
+- mint (shien's revenge, combatribes), compile (kirby's avalanche),
+  pandora box (arabian nights), prism kikaku (dual orb ii), graphic
+  research (derby jockey 2), ascii (ardy lightfoot), falcom (ys v)
 - warios woods (snes side engine, needs the .minisnsf + .snsflib)
 
 if the driver isnt recognized it still plays, you just dont get the editor.
@@ -105,9 +116,15 @@ macos should be fine too (brew sdl2, system zlib) but i havent tried.
   dumps what the parser sees. this is what i use when reverse engineering a
   driver.
 - `parsecheck song.spc [seconds]` plays the rip and checks every note the
-  driver fetches against the parse. if this passes the driver is right.
+  driver fetches against the parse (n-spc order lists included). if this
+  passes the driver is right.
 - `edittest` runs the edit tests. set `DKC_SPC=`, `KI_SPC=`, `PLOK_SPC=`,
-  `SMRPG_SPC=`, `MMX_SPC=`, `WW_SNSF=` to a rip to also test live edits.
+  `SMRPG_SPC=`, `MMX_SPC=`, `WW_SNSF=`, `KONAMI_SPC=`, `KONAMI1_SPC=`,
+  `HUDSON_SPC=`, `CHUN_SPC=`, `MINT_SPC=`, `COMPILE_SPC=`, `PANDORA_SPC=`,
+  `PRISM_SPC=`, `GRAPHRES_SPC=`, `ASCII_SPC=`, `FALCOM_SPC=`,
+  `HEARTBEAT_SPC=` to a rip to also test live edits.
+- `ptrfind song.spc seconds lo hi [min]` lists RAM words that walk through
+  an address range while the rip plays (finding a driver's live pointers).
 - headless ui for scripting / screenshots:
   `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/boomspc song.spc --size 1400x900 --script "wait 60; click 600 256; key Space; run WIN_ABOUT; shot a.bmp"`
   (`move`, `click`, `rclick`, `mdown`/`mup`, `wheel X Y`, `hold`/`release`,
