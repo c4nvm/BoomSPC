@@ -78,7 +78,7 @@ hdr[0x25:0x27] = struct.pack("<H", PC)
 hdr[0x2B] = 0xEF                         # SP
 def txt(off, n, s): hdr[off:off + n] = s.encode().ljust(n, b"\0")
 txt(0x2E, 32, "Test Tone")
-txt(0x4E, 32, "spctracker")
+txt(0x4E, 32, "BoomSPC")
 txt(0x6E, 16, "synthetic")
 txt(0x7E, 32, "square wave, pitch steps")
 txt(0x9E, 11, "09/15/2026")

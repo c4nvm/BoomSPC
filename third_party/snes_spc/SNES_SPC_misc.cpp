@@ -348,7 +348,7 @@ blargg_err_t SNES_SPC::play( int count, sample_t* out )
 	return err;
 }
 
-// spctracker addition, see PATCHES.md
+// BoomSPC addition, see PATCHES.md
 void SNES_SPC::run_dsp_only( int count, sample_t* out )
 {
 	require( (count & 1) == 0 );

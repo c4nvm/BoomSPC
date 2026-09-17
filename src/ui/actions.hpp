@@ -1,7 +1,7 @@
 // Every keyboard-driven operation is an Action with a name, a default key
 // chord and a scope. The table drives the hotkey dispatch, the menus' shortcut
 // labels, the Keyboard settings tab and the command palette, the way Furnace's
-// guiActions table does. Bindings are saved to spctracker_keys.ini.
+// guiActions table does. Bindings are saved to boomspc_keys.ini.
 #pragma once
 
 #include "imgui.h"

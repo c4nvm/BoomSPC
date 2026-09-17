@@ -104,7 +104,7 @@ public:
 	bool check_kon();
 #endif
 
-// spctracker additions: read-only inspection hooks for the tracker UI.
+// BoomSPC additions: read-only inspection hooks for the tracker UI.
 	// Call these only from the thread that drives play(); the DSP writes
 	// ENVX/OUTX into its register file as it runs.
 	SPC_DSP const& dsp_ref() const { return dsp; }

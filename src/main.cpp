@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer2_Init(renderer);
 
-    if (!theme().load("boomspc_theme.ini") && !theme().load("spctracker_theme.ini")) {
+    if (!theme().load("boomspc_theme.ini")) {
 #ifdef _WIN32
         // Half the display's scaling: sharp fonts read fine smaller than
         // the OS would blow them up to.
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
         theme().font_size_pattern = std::round(theme().font_size_pattern * f);
 #endif
     }
-    if (!actions_load("boomspc_keys.ini")) actions_load("spctracker_keys.ini");
+    actions_load("boomspc_keys.ini");
     {
         char* base = SDL_GetBasePath();
         fonts_set_base_path(base ? base : "");
