@@ -5,6 +5,7 @@
 struct Commit {
     const char* hash;
     const char* date;      // YYYY-MM-DD
+    long long   time;      // unix time
     const char* subject;
     const char* body;
 };

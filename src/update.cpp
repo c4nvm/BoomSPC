@@ -166,9 +166,9 @@ std::vector<Incoming> parse_log(const std::string& text) {
         if (end == std::string::npos) end = text.size();
         std::string rec = text.substr(pos, end - pos);
         pos = end + 1;
-        std::string f[4];
+        std::string f[5];
         size_t a = 0;
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 5; ++i) {
             size_t b = rec.find('\x1f', a);
             f[i] = rec.substr(a, b == std::string::npos ? std::string::npos : b - a);
             if (b == std::string::npos) break;
@@ -176,7 +176,7 @@ std::vector<Incoming> parse_log(const std::string& text) {
         }
         while (!f[0].empty() && (f[0][0] == '\n' || f[0][0] == '\r')) f[0].erase(0, 1);
         if (f[0].size() < 7) continue;
-        out.push_back({f[0], f[1], f[2], trim(f[3])});
+        out.push_back({f[0], f[1], f[3], trim(f[4]), std::atoll(f[2].c_str())});
     }
     return out;
 }
@@ -577,7 +577,7 @@ void check_thread() {
             ahead = true;
             commits_msg = std::to_string(n) + (n == 1 ? " new commit" : " new commits") + " on GitHub.";
             o.clear();
-            run("git log " + built + "..FETCH_HEAD --format=%H%x1f%as%x1f%s%x1f%b%x1e", src, &o);
+            run("git log " + built + "..FETCH_HEAD --format=%H%x1f%as%x1f%at%x1f%s%x1f%b%x1e", src, &o);
             std::vector<Incoming> in = parse_log(o);
             std::lock_guard<std::mutex> lock(mutex());
             shared().incoming = std::move(in);

@@ -51,7 +51,7 @@ struct Theme {
 
     bool check_updates = true;      // ask GitHub at startup
     bool updates_at_startup = true; // open the Updates panel at startup
-    char last_seen_commit[48] = {}; // the build that ran last time; newer commits are marked in the changelog
+    char last_seen_commit[48] = {}; // the build that ran last time; a different one opens the Updates panel
 
     char  font_ui[256] = "";                   // empty = system font (Auto); bundled pixel fonts by file name
     char  font_mono[256] = "";

@@ -25,6 +25,7 @@ enum class Stage {
 
 struct Incoming {
     std::string hash, date, subject, body;
+    long long time = 0;
 };
 
 struct State {

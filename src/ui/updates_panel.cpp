@@ -2,6 +2,7 @@
 // time), what GitHub has that this build lacks, and the pull-and-rebuild
 // updater with its log.
 #include <cstring>
+#include <ctime>
 #include <string>
 
 #include <SDL.h>
@@ -14,6 +15,14 @@
 #include "version.hpp"
 
 namespace {
+
+// NEW! fades down the list: the newest commit keeps it for a week, the
+// next for three days, then a day, twelve hours, six hours, then nothing.
+bool is_new(int position, long long commit_time) {
+    static const long long windows[] = {7 * 86400, 3 * 86400, 86400, 12 * 3600, 6 * 3600};
+    if (position < 0 || position >= int(sizeof windows / sizeof windows[0]) || commit_time <= 0) return false;
+    return std::time(nullptr) - commit_time < windows[position];
+}
 
 void commit_entry(const char* hash, const char* date, const char* subject, const char* body, bool mark_new) {
     ImGui::PushID(hash);
@@ -84,7 +93,7 @@ void draw_updates_panel(App& app) {
     ImGuiWindowFlags flags = 0;
     if (app.updates_quiet) { flags |= ImGuiWindowFlags_NoFocusOnAppearing; app.focus_sequencer = app.show_sequencer; app.updates_quiet = false; }
     if (!panel_begin("Updates", &app.show_updates, flags)) { panel_end(); return; }
-    app.updates_seen = true;
+    int position = 0;   // down the list across both sections
     const BuildInfo& bi = build_info();
     const update::State st = update::state();
     Theme& th = theme();
@@ -135,19 +144,14 @@ void draw_updates_panel(App& app) {
 
     if (!st.incoming.empty()) {
         ImGui::SeparatorText("New on GitHub");
-        for (const update::Incoming& c : st.incoming) commit_entry(c.hash.c_str(), c.date.c_str(), c.subject.c_str(), c.body.c_str(), true);
+        for (const update::Incoming& c : st.incoming) commit_entry(c.hash.c_str(), c.date.c_str(), c.subject.c_str(), c.body.c_str(), is_new(position++, c.time));
     }
 
     ImGui::SeparatorText("Changelog");
     if (bi.log_count == 0) ImGui::TextDisabled("No history: this copy was built outside a git checkout.");
-    // Commits above the one that ran last time are what an update brought.
-    int seen_at = -1;
-    if (*th.last_seen_commit)
-        for (int i = 0; i < bi.log_count && seen_at < 0; ++i)
-            if (!std::strncmp(bi.log[i].hash, th.last_seen_commit, 40)) seen_at = i;
     for (int i = 0; i < bi.log_count; ++i) {
         const Commit& c = bi.log[i];
-        commit_entry(c.hash, c.date, c.subject, c.body, seen_at > 0 && i < seen_at);
+        commit_entry(c.hash, c.date, c.subject, c.body, is_new(position++, c.time));
     }
 
     if (!st.log.empty()) {
