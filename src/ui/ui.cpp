@@ -47,6 +47,7 @@ bool load_into_app(App& app, SpcFile& file, const std::string& shown_name) {
     if (app.tracker.drv) app.ticks_per_beat = app.tracker.drv->default_ticks_per_beat();
     if (app.tracker.song()) { std::string fit = app.fit_grid(); if (!fit.empty()) app.status += "; grid " + fit; }
     app.engine.play();
+    if (app.show_updates) app.focus_sequencer = true;
     return true;
 }
 
@@ -443,6 +444,7 @@ void run_action(App& app, int action) {
         case A_WIN_SETTINGS:    app.show_settings = !app.show_settings; break;
         case A_WIN_SHORTCUTS:   app.show_shortcuts = !app.show_shortcuts; break;
         case A_WIN_ABOUT:       app.show_about = !app.show_about; break;
+        case A_WIN_UPDATES:     app.show_updates = !app.show_updates; break;
         case A_COMMAND_PALETTE: app.show_palette = !app.show_palette; break;
         case A_FULLSCREEN:      app.toggle_fullscreen = true; break;
         default:
@@ -592,6 +594,7 @@ static void draw_dockspace(App& app) {
     ImGui::DockBuilderDockWindow("Disassembly", right_bottom);
     ImGui::DockBuilderDockWindow("Settings", right_bottom);
     ImGui::DockBuilderDockWindow("Keyboard shortcuts", right_bottom);
+    ImGui::DockBuilderDockWindow("Updates", right_top);
     ImGui::DockBuilderFinish(id);
 }
 
@@ -688,6 +691,7 @@ void ui_draw(App& app) {
         }
         if (ImGui::BeginMenu("Help")) {
             ImGui::MenuItem("Keyboard shortcuts", sc(A_WIN_SHORTCUTS), &app.show_shortcuts);
+            ImGui::MenuItem("Updates and changelog", sc(A_WIN_UPDATES), &app.show_updates);
             ImGui::Separator();
             ImGui::MenuItem("About BoomSPC", sc(A_WIN_ABOUT), &app.show_about);
             ImGui::EndMenu();
@@ -721,6 +725,7 @@ void ui_draw(App& app) {
     if (app.show_disasm)      draw_disasm_panel(app);
     if (app.show_settings)    draw_settings_window(&app.show_settings);
     if (app.show_about)       draw_about_window(app);
+    if (app.show_updates)     { dock_beside("Updates", "Sequencer"); draw_updates_panel(app); }
     if (app.show_shortcuts)   draw_shortcuts_window(&app.show_shortcuts);
     draw_export_dialogs(app);
     if (app.show_player) draw_player_panel(app);

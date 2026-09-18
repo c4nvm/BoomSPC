@@ -169,6 +169,7 @@ int preview_voice(const App& app) {
 
 void draw_sequencer_panel(App& app) {
     ImGui::SetNextWindowSize(ImVec2(1290, 540), ImGuiCond_FirstUseEver);
+    if (app.focus_sequencer) { ImGui::SetNextWindowFocus(); app.focus_sequencer = false; }
     if (!panel_begin("Sequencer", &app.show_sequencer)) { panel_end(); return; }
 
     Tracker& T = app.tracker;

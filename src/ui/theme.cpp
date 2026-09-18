@@ -306,6 +306,9 @@ bool Theme::load(const char* path) {
         else if (std::sscanf(line, "wrap_cursor=%d", &iv) == 1) wrap_cursor = iv;
         else if (std::sscanf(line, "step_on_hex=%d", &iv) == 1) step_on_hex = iv;
         else if (std::sscanf(line, "note_writes_ins=%d", &iv) == 1) note_writes_ins = iv;
+        else if (std::sscanf(line, "check_updates=%d", &iv) == 1) check_updates = iv;
+        else if (std::sscanf(line, "updates_at_startup=%d", &iv) == 1) updates_at_startup = iv;
+        else if (std::sscanf(line, "last_seen_commit=%47s", sv) == 1) std::snprintf(last_seen_commit, sizeof last_seen_commit, "%.47s", sv);
         else if (std::sscanf(line, "font_size_ui=%f", &fv) == 1) font_size_ui = fv;
         else if (std::sscanf(line, "font_tracking=%f", &fv) == 1) font_tracking = fv;
         else if (std::sscanf(line, "font_size_pattern=%f", &fv) == 1) font_size_pattern = fv;
@@ -331,6 +334,7 @@ bool Theme::save(const char* path) const {
                  ins_colors, fx_hex_codes, dim_muted, show_meters, cursor_row_tint, wrap_cursor, step_on_hex, note_writes_ins);
     std::fprintf(f, "font_size_ui=%.1f\nfont_size_pattern=%.1f\nfont_tracking=%.2f\nwidget_gap=%.2f\nfont_ui=%s\nfont_mono=%s\nlast_dir=%s\n",
                  font_size_ui, font_size_pattern, font_tracking, widget_gap, font_ui, font_mono, last_dir);
+    std::fprintf(f, "check_updates=%d\nupdates_at_startup=%d\nlast_seen_commit=%s\n", check_updates, updates_at_startup, last_seen_commit);
     std::fclose(f);
     return true;
 }

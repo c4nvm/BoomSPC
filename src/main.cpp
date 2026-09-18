@@ -14,6 +14,8 @@
 #include "ui/fonts.hpp"
 #include "ui/theme.hpp"
 #include "ui/ui.hpp"
+#include "update.hpp"
+#include "version.hpp"
 #include "wav.hpp"
 
 namespace {
@@ -73,6 +75,8 @@ void save_screenshot(SDL_Renderer* r, const std::string& path) {
 
 int main(int argc, char** argv) {
     const Options opt = parse_args(argc, argv);
+    const bool headless = !opt.screenshot.empty() || !opt.script.empty();
+    update::cleanup_old();
 #ifdef _WIN32
     // Sharp on high-DPI desktops: the window is in pixels (no ALLOW_HIGHDPI
     // below), and the first run scales the default font sizes by the DPI.
@@ -143,6 +147,15 @@ int main(int argc, char** argv) {
     if (!opt.record.empty()) app.engine.set_capture(&capture);
     if (!opt.file.empty()) app.open_any(opt.file);
     std::string applied_title;
+    // The build that ran last time, with its '+' (local changes) marker dropped.
+    std::string this_commit = build_info().commit;
+    if (!this_commit.empty() && this_commit.back() == '+') this_commit.pop_back();
+    const bool just_updated = *theme().last_seen_commit && this_commit != theme().last_seen_commit;
+    bool update_announced = false;
+    if (!headless) {
+        if (theme().updates_at_startup || just_updated) { app.show_updates = true; app.updates_quiet = app.engine.loaded(); }
+        if (theme().check_updates) update::check();
+    }
 
     bool running = true;
     bool fullscreen = false;
@@ -170,6 +183,11 @@ int main(int argc, char** argv) {
         if (app.window_title != applied_title) {
             applied_title = app.window_title;
             SDL_SetWindowTitle(window, applied_title.c_str());
+        }
+        if (app.restart) running = false;
+        if (!update_announced && update::stage() == update::Stage::Available) {
+            update_announced = true;
+            if (!app.show_updates) { app.show_updates = true; app.updates_quiet = true; }
         }
         if (app.toggle_fullscreen) {
             app.toggle_fullscreen = false;
@@ -274,6 +292,7 @@ int main(int argc, char** argv) {
         SDL_RenderPresent(renderer);
     }
 
+    if (!this_commit.empty()) std::snprintf(theme().last_seen_commit, sizeof theme().last_seen_commit, "%s", this_commit.c_str());
     theme().save("boomspc_theme.ini");
     actions_save("boomspc_keys.ini");
     if (!opt.record.empty()) { app.engine.set_capture(nullptr); write_wav_mono(opt.record, capture, Engine::kSampleRate); }
@@ -284,5 +303,6 @@ int main(int argc, char** argv) {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+    if (app.restart) update::restart();
     return 0;
 }

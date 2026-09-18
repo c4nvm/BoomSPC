@@ -84,6 +84,32 @@ so if it does something dumb tell me.
 
 macos should be fine too (brew sdl2, system zlib) but i havent tried.
 
+### updating
+
+boomspc knows which commit it was built from and asks github at startup
+whether master has moved and whether there is a newer release (help >
+updates and changelog, or turn the check off there). the panel lists the
+git log of your build, marks what came in since you last ran it, and
+offers two ways to update:
+
+- **download vX.Y**: grabs the release asset for your platform, unpacks it
+  over this copy (your ini files are kept) and offers a restart. no tools
+  needed, just curl. release assets are matched by name, so name them
+  like `boomspc-v0.2.0-windows-x64.zip`, `boomspc-v0.2.0-linux-x64.tar.gz`,
+  `boomspc-v0.2.0-macos-arm64.zip` (os word required, arch word optional).
+- **update and rebuild**: `git pull --ff-only` in the tree you built from
+  plus `cmake --build`, then a restart. a copy whose source tree is gone
+  clones into `BoomSPC-src` next to the executable and builds there. when
+  git, cmake, a compiler or the SDL2 / zlib dev files are missing it asks
+  whether to install them (dnf / apt / pacman / zypper through pkexec,
+  brew on macos, winget + msys2 on windows) or to open the github page so
+  you can download a build instead.
+
+the folder the executable lives in has to be writable. on windows the
+running exe (and any dll in use) is renamed to `.old` while the new one
+goes in and cleaned up at the next start. the windows and macos tool
+installs have not been run on real machines yet.
+
 ## using it
 
 - `enter` play/stop, `ctrl+r` restart, `shift+enter` play from the cursor.

@@ -113,6 +113,7 @@ const ActionDef kDefs[A_COUNT] = {
     {"WIN_SETTINGS",   "Window: Settings",               "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_Comma, MOD_CTRL)), false},
     {"WIN_SHORTCUTS",  "Window: Keyboard shortcuts",     "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_Slash, MOD_CTRL), K(ImGuiKey_F1, MOD_SHIFT | MOD_CTRL)), false},
     {"WIN_ABOUT",      "About BoomSPC",                  "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_None)), false},
+    {"WIN_UPDATES",    "Updates and changelog",          "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_None)), false},
     {"COMMAND_PALETTE","Command palette",                "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_P, MOD_CTRL)), false},
     {"FULLSCREEN",     "Toggle full screen",             "Windows",   SCOPE_GLOBAL,  B(K(ImGuiKey_F11)), false},
 };

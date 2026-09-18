@@ -31,12 +31,16 @@ struct App {
     bool show_effects     = true;    // the driver's command list
     bool show_event_editor = true;   // events under the cursor, with arguments
     bool focus_event_editor = false; // bring the Event tab to the front next frame
+    bool focus_sequencer = false;    // same for the Sequencer (a loaded song over the Updates tab)
     bool show_samples     = false;
     bool show_disasm      = false;
     bool show_settings    = false;
     bool show_shortcuts   = false;
     bool show_palette     = false;   // command palette popup
     bool show_about       = false;
+    bool show_updates     = false;
+    bool updates_quiet    = false;   // open the Updates tab behind the Sequencer (a song is showing)
+    bool restart          = false;   // quit and start the freshly built executable (main() does it)
     bool focus_path_box   = false;   // Ctrl+O: put the caret in the Player's path field
     bool toggle_fullscreen = false;  // handled by main()
     bool reset_layout = false;       // rebuild the default panel arrangement
@@ -135,6 +139,7 @@ void draw_disasm_panel(App& app);
 void draw_export_dialogs(App& app);
 void draw_status_bar(App& app);
 void draw_about_window(App& app);
+void draw_updates_panel(App& app);
 void draw_welcome_banner();
 void logo_load(void* sdl_renderer, const std::string& base_path);
 void logo_refresh();

@@ -11,6 +11,7 @@ endif()
 
 find_package(SDL2 REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(Threads REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Dear ImGui (fetched at configure time, SDL2 + SDL_Renderer backends)
@@ -77,8 +78,21 @@ set(DRIVER_SOURCES
 # ---------------------------------------------------------------------------
 # boomspc
 # ---------------------------------------------------------------------------
+# version.cpp carries the git commit, the changelog and where this tree lives
+# (the in-app updater pulls and rebuilds it). Regenerated on every build.
+set(VERSION_CPP ${CMAKE_BINARY_DIR}/generated/version.cpp)
+set(VERSION_ARGS -DSRC=${CMAKE_SOURCE_DIR} -DBIN=${CMAKE_BINARY_DIR} -DOUT=${VERSION_CPP}
+    -DVERSION=${PROJECT_VERSION} -DCMAKE_EXE=${CMAKE_COMMAND} -DGENERATOR=${CMAKE_GENERATOR} -DBUILD_TYPE=${CMAKE_BUILD_TYPE})
+execute_process(COMMAND ${CMAKE_COMMAND} ${VERSION_ARGS} -P ${CMAKE_SOURCE_DIR}/cmake/version.cmake)
+add_custom_target(boomspc_version
+    COMMAND ${CMAKE_COMMAND} ${VERSION_ARGS} -P ${CMAKE_SOURCE_DIR}/cmake/version.cmake
+    BYPRODUCTS ${VERSION_CPP}
+    COMMENT "Updating version info" VERBATIM)
+
 add_executable(boomspc
     src/main.cpp
+    src/update.cpp
+    ${VERSION_CPP}
     src/spc_file.cpp
     src/engine.cpp
     src/snes.cpp
@@ -105,13 +119,15 @@ add_executable(boomspc
     src/ui/fonts.cpp
     src/ui/file_dialog.cpp
     src/ui/about.cpp
+    src/ui/updates_panel.cpp
     src/project.cpp
 )
+add_dependencies(boomspc boomspc_version)
 target_include_directories(boomspc PRIVATE src third_party/stb)
 if(WIN32)
     target_link_libraries(boomspc PRIVATE SDL2::SDL2main)
 endif()
-target_link_libraries(boomspc PRIVATE imgui snes_spc SDL2::SDL2 ZLIB::ZLIB)
+target_link_libraries(boomspc PRIVATE imgui snes_spc SDL2::SDL2 ZLIB::ZLIB Threads::Threads)
 
 target_compile_options(boomspc PRIVATE -Wall -Wextra)
 target_compile_definitions(boomspc PRIVATE BOOMSPC_VERSION="${PROJECT_VERSION}")
