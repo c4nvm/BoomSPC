@@ -42,6 +42,9 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - name: Keep LF line endings
+        shell: bash
+        run: git config --global core.autocrlf false   # or the tree looks modified to the version stamp
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

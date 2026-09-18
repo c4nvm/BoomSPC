@@ -25,6 +25,7 @@ enum class Stage {
 
 struct Incoming {
     std::string hash, date, subject, body;
+    std::string tag;        // release tag on the commit, "" when none
     long long time = 0;
 };
 

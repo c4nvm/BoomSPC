@@ -4,6 +4,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <vector>
 
 #include <SDL.h>
 
@@ -24,7 +25,24 @@ bool is_new(int position, long long commit_time) {
     return std::time(nullptr) - commit_time < windows[position];
 }
 
-void commit_entry(const char* hash, const char* date, const char* subject, const char* body, bool mark_new) {
+// Release tags are coloured by how big the step was: major bumps in the
+// bright velocity colour, minor in the middle one, patch in the muted one.
+// Compared with the previous (older) release; a first release goes by its
+// highest non-zero digit.
+int release_level(const std::string& tag, const std::string& older) {
+    int a[3], b[3];
+    if (!update::parse_version(tag, a)) return -1;
+    if (!update::parse_version(older, b)) { b[0] = b[1] = b[2] = 0; }
+    for (int i = 0; i < 3; ++i) if (a[i] != b[i]) return i;
+    return 2;
+}
+
+ImVec4 level_color(int level) {
+    const ThemeColor c[3] = {TC_VOL_MAX, TC_VOL_HALF, TC_VOL_MIN};
+    return theme().colors[c[level < 0 ? 2 : level > 2 ? 2 : level]];
+}
+
+void commit_entry(const char* hash, const char* date, const char* subject, const char* body, bool mark_new, const char* tag = "", int level = -1) {
     ImGui::PushID(hash);
     const bool has_body = body && *body;
     ImGuiTreeNodeFlags fl = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -34,12 +52,17 @@ void commit_entry(const char* hash, const char* date, const char* subject, const
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
     const bool open = ImGui::TreeNodeEx("##c", fl, "%s", label);
     ImGui::PopStyleColor();
+    if (tag && *tag) {
+        ImGui::SameLine();
+        ImGui::TextColored(level_color(level), "%s", tag);
+    }
     if (mark_new) {
         ImGui::SameLine();
         ImGui::TextColored(theme().colors[TC_VOL_MAX], "NEW!");
     }
     ImGui::Indent(em(1.2f));
-    ImGui::TextUnformatted(subject);
+    if (tag && *tag) ImGui::TextColored(level_color(level), "%s", subject);
+    else ImGui::TextUnformatted(subject);
     if (open && has_body) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         text_spaced(body);
@@ -93,9 +116,18 @@ void draw_updates_panel(App& app) {
     ImGuiWindowFlags flags = 0;
     if (app.updates_quiet) { flags |= ImGuiWindowFlags_NoFocusOnAppearing; app.focus_sequencer = app.show_sequencer; app.updates_quiet = false; }
     if (!panel_begin("Updates", &app.show_updates, flags)) { panel_end(); return; }
-    int position = 0;   // down the list across both sections
     const BuildInfo& bi = build_info();
     const update::State st = update::state();
+    int position = 0;   // down the list across both sections
+    // Every release tag in view, newest first, so each can be compared with the one before it.
+    std::vector<std::string> tags;
+    for (const update::Incoming& c : st.incoming) if (!c.tag.empty()) tags.push_back(c.tag);
+    for (int i = 0; i < bi.log_count; ++i) if (*bi.log[i].tag) tags.push_back(bi.log[i].tag);
+    auto level_of = [&](const std::string& tag) {
+        for (size_t i = 0; i < tags.size(); ++i)
+            if (tags[i] == tag) return release_level(tag, i + 1 < tags.size() ? tags[i + 1] : std::string());
+        return -1;
+    };
     Theme& th = theme();
 
     ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.3f);
@@ -146,14 +178,14 @@ void draw_updates_panel(App& app) {
 
     if (!st.incoming.empty()) {
         ImGui::SeparatorText("New on GitHub");
-        for (const update::Incoming& c : st.incoming) commit_entry(c.hash.c_str(), c.date.c_str(), c.subject.c_str(), c.body.c_str(), is_new(position++, c.time));
+        for (const update::Incoming& c : st.incoming) commit_entry(c.hash.c_str(), c.date.c_str(), c.subject.c_str(), c.body.c_str(), is_new(position++, c.time), c.tag.c_str(), level_of(c.tag));
     }
 
     ImGui::SeparatorText("Changelog");
     if (bi.log_count == 0) ImGui::TextDisabled("No history: this copy was built outside a git checkout.");
     for (int i = 0; i < bi.log_count; ++i) {
         const Commit& c = bi.log[i];
-        commit_entry(c.hash, c.date, c.subject, c.body, is_new(position++, c.time));
+        commit_entry(c.hash, c.date, c.subject, c.body, is_new(position++, c.time), c.tag, level_of(c.tag));
     }
 
     if (!st.log.empty()) {

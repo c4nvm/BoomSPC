@@ -6,6 +6,7 @@ struct Commit {
     const char* hash;
     const char* date;      // YYYY-MM-DD
     long long   time;      // unix time
+    const char* tag;       // release tag on this commit ("v0.4.0"), "" when none
     const char* subject;
     const char* body;
 };

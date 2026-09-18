@@ -113,6 +113,8 @@ offers two ways to update:
   optional arch word in their name. versions come from the tags:
   `git describe` at build time gives "0.4.0" or "0.4.0 +3" for a build
   three commits past the tag, and the check compares release versions.
+  tagged commits are coloured by the size of the step: a major bump in the
+  bright velocity colour, minor in the middle one, patch in the muted one.
 - **update and rebuild**: `git pull --ff-only` in the tree you built from
   plus `cmake --build`, then a restart. a copy whose source tree is gone
   clones into `BoomSPC-src` next to the executable and builds there. when

@@ -1,6 +1,7 @@
 #include "update.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -167,9 +168,9 @@ std::vector<Incoming> parse_log(const std::string& text) {
         if (end == std::string::npos) end = text.size();
         std::string rec = text.substr(pos, end - pos);
         pos = end + 1;
-        std::string f[5];
+        std::string f[6];
         size_t a = 0;
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < 6; ++i) {
             size_t b = rec.find('\x1f', a);
             f[i] = rec.substr(a, b == std::string::npos ? std::string::npos : b - a);
             if (b == std::string::npos) break;
@@ -177,7 +178,14 @@ std::vector<Incoming> parse_log(const std::string& text) {
         }
         while (!f[0].empty() && (f[0][0] == '\n' || f[0][0] == '\r')) f[0].erase(0, 1);
         if (f[0].size() < 7) continue;
-        out.push_back({f[0], f[1], f[3], trim(f[4]), std::atoll(f[2].c_str())});
+        // %D: "tag: v0.5.0, origin/master"; keep the first release tag
+        std::string tag;
+        for (size_t p = f[3].find("tag: "); p != std::string::npos; p = f[3].find("tag: ", p + 5)) {
+            size_t e = f[3].find_first_of(", ", p + 5);
+            std::string t = f[3].substr(p + 5, e == std::string::npos ? std::string::npos : e - p - 5);
+            if (t.size() > 1 && t[0] == 'v' && std::isdigit((unsigned char)t[1])) { tag = t; break; }
+        }
+        out.push_back({f[0], f[1], f[4], trim(f[5]), tag, std::atoll(f[2].c_str())});
     }
     return out;
 }
@@ -367,17 +375,17 @@ std::string pick_asset(const Json& assets, std::string* url) {
 }
 
 // Latest release with an asset for us, newer than this build. Fills the
-// shared state; returns whether there is one.
-bool check_release() {
-    if (github_slug().empty() && !std::getenv("BOOMSPC_RELEASE_API")) return false;
+// shared state. 1 = there is one, 0 = none newer, -1 = could not ask.
+int check_release() {
+    if (github_slug().empty() && !std::getenv("BOOMSPC_RELEASE_API")) return 0;
     Json rel;
-    if (!fetch_json(api_base() + "/releases/latest", rel) || rel.type != Json::Object) return false;
+    if (!fetch_json(api_base() + "/releases/latest", rel) || rel.type != Json::Object) return -1;
     const std::string tag = rel.text("tag_name");
-    if (tag.empty()) return false;
+    if (tag.empty()) return 0;
     std::string url;
     const Json* assets = rel.get("assets");
     const std::string asset = assets ? pick_asset(*assets, &url) : "";
-    if (asset.empty()) { log_append("release " + tag + " has no download for this platform\n"); return false; }
+    if (asset.empty()) { log_append("release " + tag + " has no download for this platform\n"); return 0; }
 
     bool newer;
     const std::string built = built_commit();
@@ -397,12 +405,12 @@ bool check_release() {
         if (!v.empty() && (v[0] == 'v' || v[0] == 'V')) v.erase(0, 1);
         newer = v != build_info().version;
     }
-    if (!newer) return false;
+    if (!newer) return 0;
     std::lock_guard<std::mutex> lock(mutex());
     shared().release_tag = tag;
     shared().release_asset = asset;
     shared().release_url = rel.text("html_url");
-    return true;
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -573,7 +581,7 @@ void check_thread() {
         std::string o;
         // Straight from the https URL rather than origin: an ssh remote would
         // ask for a key passphrase on every start.
-        if (run("git fetch --quiet " + https_url() + " " + branch(), src) != 0 || run("git rev-parse FETCH_HEAD", src, &o) != 0) { set(Stage::Failed, "Could not reach GitHub (see the log)."); return; }
+        if (run("git fetch --quiet --tags " + https_url() + " " + branch(), src) != 0 || run("git rev-parse FETCH_HEAD", src, &o) != 0) { set(Stage::Failed, "Could not reach GitHub (see the log)."); return; }
         const std::string remote = trim(o);
         { std::lock_guard<std::mutex> lock(mutex()); shared().remote_commit = remote; }
         o.clear();
@@ -583,7 +591,7 @@ void check_thread() {
             ahead = true;
             commits_msg = std::to_string(n) + (n == 1 ? " new commit" : " new commits") + " on GitHub.";
             o.clear();
-            run("git log " + built + "..FETCH_HEAD --format=%H%x1f%as%x1f%at%x1f%s%x1f%b%x1e", src, &o);
+            run("git log " + built + "..FETCH_HEAD --format=%H%x1f%as%x1f%at%x1f%D%x1f%s%x1f%b%x1e", src, &o);
             std::vector<Incoming> in = parse_log(o);
             std::lock_guard<std::mutex> lock(mutex());
             shared().incoming = std::move(in);
@@ -599,18 +607,20 @@ void check_thread() {
         }
     }
 
-    const bool release = check_release();
+    const int release = check_release();
+    const char* no_releases = " The release list could not be fetched (no curl, or offline).";
     std::string msg;
-    if (release) {
+    if (release > 0) {
         std::lock_guard<std::mutex> lock(mutex());
         msg = "Release " + shared().release_tag + " is on GitHub with a build for this platform (" + shared().release_asset + ").";
         if (ahead) msg += " " + commits_msg;
     } else if (ahead) {
         msg = commits_msg;
         if (!has_source()) msg += " Updating clones the source next to the executable and builds it there.";
-    } else if (!git && github_slug().empty()) { set(Stage::Failed, "git is not installed, so the branch cannot be compared."); return; }
+        if (release < 0) msg += no_releases;
+    } else if (!git && release < 0) { set(Stage::Failed, "Could not check GitHub: git is not installed and the release list could not be fetched (no curl, or offline)."); return; }
     else if (!git) { set(Stage::UpToDate, "No newer release on GitHub. Install git to compare with the " + branch() + " branch too."); return; }
-    else { set(Stage::UpToDate, "Up to date: " + short_hash(built) + " is the newest commit on " + branch() + "."); return; }
+    else { set(Stage::UpToDate, "Up to date: " + short_hash(built) + " is the newest commit on " + branch() + "." + (release < 0 ? no_releases : "")); return; }
     set(Stage::Available, msg);
 }
 
