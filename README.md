@@ -27,7 +27,8 @@ drivers it knows right now:
   pandora box (arabian nights), prism kikaku (dual orb ii), graphic
   research (derby jockey 2), ascii (ardy lightfoot), falcom (ys v),
   neverland (lufia 1/2, energy breaker), sculptured berlioz (mortal
-  kombat ii, secret of evermore)
+  kombat ii, secret of evermore), bitmasters slick (earthworm jim, nba
+  jam te)
 - warios woods (snes side engine, needs the .minisnsf + .snsflib)
 
 if the driver isnt recognized it still plays, you just dont get the editor.

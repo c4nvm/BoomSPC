@@ -15,10 +15,14 @@
 - **More drivers**: Rare's Battletoads build, Sunsoft; Capcom song-list
   games (X2/X3, SF2). Fresh RE needed (nothing public): Opus (Nosferatu,
   Final Stretch...: a nibble-packed stream, editing would mean
-  re-encoding), Bitmasters SLICK (Earthworm Jim, NBA Jam TE), Wolfteam
-  (Tales of Phantasia, Star Ocean), Popful Mail, Elfaria, Super Tetris 3
-  (an N-SPC build whose voice pointers are not in the zero page).
+  re-encoding), Wolfteam (Tales of Phantasia, Star Ocean), Popful Mail,
+  Elfaria, Super Tetris 3 (an N-SPC build whose voice pointers are not in
+  the zero page).
   `driver/falcom.cpp` is the smallest stream-driver template.
+- SLICK notes carry a gate (how long they sound) separate from the delay
+  to the next event; the tracker shows the delay as the note's length and
+  the gate in the event text. Earthworm Jim rips are packed: most have no
+  free run long enough for a rewritten pattern.
 - Berlioz songs can have up to 20 tracks (DSP voices are handed out per
   note); only the first eight are shown and edited. A track's relative
   notes (delta from the last note) are written out as absolute notes when
@@ -293,6 +297,10 @@ V), Heartbeat (DQ3/6). Pitfalls worth remembering:
   On relocation the body is re-found by address then by tick when it is
   the track's own earlier bytes (flagged at parse time), and the end by
   the event that ends there; a body in another track stays put.
+- MIDI-shaped streams (SLICK: a variable-length delay after every event,
+  a pattern's first bytes being a header and a delay) parse with the delay
+  as the event's duration, so commands are timed events too; a note put
+  on a command's delay moves the delay into a rest after it (`peel_delay`).
 - Two-level songs (Neverland: per-voice lists of sections, shared between
   voices and revisited) parse as one program whose section-end events jump
   to the next list entry (target, transpose and entry address stashed in

@@ -1,6 +1,6 @@
 // Shared base for drivers whose songs are one byte program per voice with
 // no order list (Konami, Hudson, Chunsoft, Mint, Compile, Pandora Box,
-// Neverland, Prism, Graphic Research, ASCII, Falcom, Berlioz...). A format supplies
+// Neverland, Prism, Graphic Research, ASCII, Falcom, Berlioz, SLICK...). A format supplies
 // `decode` (one event from its bytes, plus the control flow it causes) and
 // a few tables; the parser, position tracking and the generic stream
 // editing come from here. Formats with more exotic control flow keep their

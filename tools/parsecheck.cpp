@@ -92,9 +92,12 @@ int main(int argc, char** argv) {
             size_t pi = start, matched = 0;
             for (size_t k = 0; k < seen[v].size(); ++k) {
                 if (parsed[pi] != seen[v][k]) {
-                    if (seen[v][k] == 0 || ((seen[v][k] & 0xFF) == (parsed[pi] & 0xFF) && (seen[v][k] >> 8) == 0)) return std::make_pair(matched, true);
+                    if (seen[v][k] == 0 || seen[v][k] == 0xFFFF || ((seen[v][k] & 0xFF) == (parsed[pi] & 0xFF) && (seen[v][k] >> 8) == 0)) return std::make_pair(matched, true);
                     if (k + 1 < seen[v].size() && seen[v][k + 1] == parsed[pi]) continue;   // a value caught mid-event
-                    if (pi + 1 < parsed.size() && seen[v][k] == parsed[pi + 1]) { ++pi; ++matched; continue; }   // a parked position the sampling missed
+                    bool skipped = false;   // parked positions the sampling missed (short notes, chords)
+                    for (size_t j = 1; j <= 3 && pi + j < parsed.size() && !skipped; ++j)
+                        if (seen[v][k] == parsed[pi + j]) { pi += j; ++matched; skipped = true; }
+                    if (skipped) continue;
                     if (pi + 1 < parsed.size() && k + 1 < seen[v].size() && seen[v][k + 1] == parsed[pi + 1]) { ++pi; ++matched; continue; }   // both at once
                     if (fail_k) { *fail_k = k; *fail_pi = pi; }
                     return std::make_pair(matched, false);

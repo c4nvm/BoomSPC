@@ -689,6 +689,8 @@ int main() {
     test_live_edit("HEARTBEAT_SPC", "heartbeat");
     test_live_edit("NEVERLAND_SPC", "neverland");
     test_live_edit("BERLIOZ_SPC", "berlioz");
+    test_live_edit("SLICK_SPC", "slick");
+    test_live_edit("WOLFTEAM_SPC", "wolfteam");
     test_capcom_stream();
     test_akao_stream();
     test_akao_detect_smrpg();
