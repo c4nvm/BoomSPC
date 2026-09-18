@@ -1,5 +1,6 @@
 #include "update.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -380,7 +381,12 @@ bool check_release() {
 
     bool newer;
     const std::string built = built_commit();
-    if (!built.empty() && build_info().time > 0) {
+    int ours[3], theirs[3];
+    if (parse_version(build_info().tag, ours) && parse_version(tag, theirs)) {
+        // Both sides carry release tags: a plain version compare. An equal
+        // tag means we are at or past that release.
+        newer = std::lexicographical_compare(ours, ours + 3, theirs, theirs + 3);
+    } else if (!built.empty() && build_info().time > 0) {
         // A release made from the very commit we run is not an update.
         Json commit;
         std::string sha;
@@ -779,6 +785,22 @@ std::string releases_url() {
     if (!page.empty()) return page;
     const std::string slug = github_slug();
     return "https://github.com/" + (slug.empty() ? std::string("c4nvm/BoomSPC") : slug) + "/releases";
+}
+
+bool parse_version(const std::string& tag, int out[3]) {
+    const char* s = tag.c_str();
+    if (*s == 'v' || *s == 'V') ++s;
+    out[0] = out[1] = out[2] = 0;
+    return std::sscanf(s, "%d.%d.%d", &out[0], &out[1], &out[2]) >= 2;
+}
+
+std::string version_label() {
+    const BuildInfo& bi = build_info();
+    int v[3];
+    if (!parse_version(bi.tag, v)) return bi.version;
+    std::string label = std::string(bi.tag).substr(bi.tag[0] == 'v' || bi.tag[0] == 'V' ? 1 : 0);
+    if (bi.since_tag > 0) label += " +" + std::to_string(bi.since_tag);
+    return label;
 }
 
 std::string exe_path() {

@@ -99,12 +99,14 @@ void draw_updates_panel(App& app) {
     Theme& th = theme();
 
     ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.3f);
-    ImGui::Text("BoomSPC %s", bi.version);
+    ImGui::Text("BoomSPC %s", update::version_label().c_str());
     ImGui::PopFont();
     const size_t hl = std::strlen(bi.commit);
     const bool dirty = hl && bi.commit[hl - 1] == '+';
-    if (hl) text_wrapped("Built from %.7s on %s (%s)%s", bi.commit, bi.branch, bi.date, dirty ? ", with uncommitted changes" : "");
-    else ImGui::TextDisabled("Built outside a git checkout.");
+    if (hl) {
+        std::string tagged = *bi.tag ? bi.since_tag > 0 ? std::string(", ") + std::to_string(bi.since_tag) + (bi.since_tag == 1 ? " commit after " : " commits after ") + bi.tag : std::string(", release ") + bi.tag : ", no release tag yet";
+        text_wrapped("Built from %.7s on %s (%s)%s%s", bi.commit, bi.branch, bi.date, tagged.c_str(), dirty ? ", with uncommitted changes" : "");
+    } else ImGui::TextDisabled("Built outside a git checkout.");
     ImGui::TextDisabled("%s: %s", update::has_source() ? "Source" : "Source (cloned on update)", update::source_dir().c_str());
     ImGui::Spacing();
 

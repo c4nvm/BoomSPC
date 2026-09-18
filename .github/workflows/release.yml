@@ -1,0 +1,90 @@
+# Builds the Linux and Windows zips for a release tag (v0.4.0 and so on) and
+# publishes them on the GitHub release. Run by hand to get the zips as
+# workflow artifacts without a release.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the changelog and git describe need the history and tags
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++ libsdl2-dev zlib1g-dev
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target boomspc boomspc_assets spc2wav spcdump
+      - name: Package
+        run: |
+          pkg=BoomSPC-linux-x64
+          mkdir -p $pkg
+          cp build/boomspc build/spc2wav build/spcdump README.md LICENSE $pkg/
+          cp -r assets $pkg/
+          tar -czf $pkg.tar.gz $pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: BoomSPC-linux-x64.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: git zip mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-zlib
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target boomspc boomspc_assets spc2wav spcdump
+      - name: Package
+        # The C++ runtime is linked statically; SDL2 and zlib come along as DLLs.
+        run: |
+          pkg=BoomSPC-windows-x64
+          mkdir -p $pkg
+          cp build/boomspc.exe build/spc2wav.exe build/spcdump.exe README.md LICENSE $pkg/
+          cp -r assets $pkg/
+          for exe in $pkg/*.exe; do
+            ldd "$exe" | grep -i '/ucrt64/' | awk '{print $3}' | xargs -r -I{} cp -n {} $pkg/
+          done
+          ls $pkg
+          zip -r $pkg.zip $pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: BoomSPC-windows-x64.zip
+
+  release:
+    needs: [linux, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=${GITHUB_REF_NAME}
+          gh release create "$tag" --title "BoomSPC $tag" --generate-notes \
+            dist/BoomSPC-linux-x64.tar.gz dist/BoomSPC-windows-x64.zip

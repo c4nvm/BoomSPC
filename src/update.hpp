@@ -52,6 +52,8 @@ Stage stage();           // cheaper than state() for a per-frame poll
 bool  has_source();      // the tree this binary was built from is still there
 std::string source_dir();    // where the build path pulls to (built tree or the clone next to the exe)
 std::string releases_url();  // the GitHub releases page
+std::string version_label(); // "0.4.0", or "0.4.0 +3" for commits past the tag, or the project version when untagged
+bool  parse_version(const std::string& tag, int out[3]);   // "v0.4.0" / "0.4.0"
 
 std::string exe_path();
 void  cleanup_old();     // remove files an earlier update renamed aside

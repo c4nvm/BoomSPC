@@ -16,6 +16,8 @@ struct BuildInfo {
     const char* branch;
     const char* date;
     long long   time;       // unix time of the commit, 0 when unknown
+    const char* tag;        // newest release tag at or before the commit ("v0.4.0"), "" when none
+    int         since_tag;  // commits after that tag
     const char* remote;     // origin URL of the source tree
     const char* source_dir;
     const char* binary_dir;

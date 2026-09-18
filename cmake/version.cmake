@@ -9,6 +9,8 @@ set(branch "")
 set(date "")
 set(time 0)
 set(remote "")
+set(tag "")
+set(since_tag 0)
 set(log "")
 if(GIT_EXECUTABLE AND EXISTS "${SRC}/.git")
     macro(git_out var)
@@ -22,6 +24,12 @@ if(GIT_EXECUTABLE AND EXISTS "${SRC}/.git")
     git_out(date log -1 --format=%as)
     git_out(time log -1 --format=%at)
     git_out(remote remote get-url origin)
+    # v0.4.0-3-gabc1234: the release tag this build follows and how far behind it is
+    git_out(describe describe --tags --match "v[0-9]*" --long)
+    if(describe MATCHES "^(v[0-9][^-]*)-([0-9]+)-g[0-9a-f]+$")
+        set(tag "${CMAKE_MATCH_1}")
+        set(since_tag "${CMAKE_MATCH_2}")
+    endif()
     git_out(log log -n 40 --format=%H${US}%as${US}%at${US}%s${US}%b${RS})
     git_out(dirty status --porcelain --untracked-files=no)
     if(dirty)
@@ -84,6 +92,8 @@ const BuildInfo kInfo = {
     \"${branch}\",
     \"${date}\",
     ${time},
+    \"${tag}\",
+    ${since_tag},
     R\"${D}(${remote})${D}\",
     R\"${D}(${SRC})${D}\",
     R\"${D}(${BIN})${D}\",

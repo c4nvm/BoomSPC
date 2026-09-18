@@ -2,6 +2,18 @@
 
 # BoomSPC
 
+<p align="center">
+  <a href="https://github.com/c4nvm/BoomSPC/releases/latest/download/BoomSPC-windows-x64.zip"><img src="https://img.shields.io/badge/Download-Windows-0078d4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"></a>
+  &nbsp;
+  <a href="https://github.com/c4nvm/BoomSPC/releases/latest/download/BoomSPC-linux-x64.tar.gz"><img src="https://img.shields.io/badge/Download-Linux-e95420?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux"></a>
+  &nbsp;
+  <a href="https://github.com/c4nvm/BoomSPC/releases/latest"><img src="https://img.shields.io/github/v/release/c4nvm/BoomSPC?style=for-the-badge&label=latest&color=6e40c9" alt="Latest release"></a>
+</p>
+
+unzip, run `boomspc` (windows: `boomspc.exe`, linux needs `libSDL2` from
+your distro). no install; it updates itself from help > updates and
+changelog.
+
 spc700 player and tracker. loads .spc rips, plays them with blargg's snes_spc
 core, and if it recognizes the game's sound driver it shows the song as a
 tracker / piano roll / arrangement you can actually edit and save back out as
@@ -94,9 +106,13 @@ offers two ways to update:
 
 - **download vX.Y**: grabs the release asset for your platform, unpacks it
   over this copy (your ini files are kept) and offers a restart. no tools
-  needed, just curl. release assets are matched by name, so name them
-  like `boomspc-v0.2.0-windows-x64.zip`, `boomspc-v0.2.0-linux-x64.tar.gz`,
-  `boomspc-v0.2.0-macos-arm64.zip` (os word required, arch word optional).
+  needed, just curl. the release zips are built by the `release` github
+  action whenever a `vX.Y.Z` tag is pushed (linux on ubuntu, windows with
+  msys2 ucrt64), named `BoomSPC-windows-x64.zip` and
+  `BoomSPC-linux-x64.tar.gz`; assets are matched by the os word and an
+  optional arch word in their name. versions come from the tags:
+  `git describe` at build time gives "0.4.0" or "0.4.0 +3" for a build
+  three commits past the tag, and the check compares release versions.
 - **update and rebuild**: `git pull --ff-only` in the tree you built from
   plus `cmake --build`, then a restart. a copy whose source tree is gone
   clones into `BoomSPC-src` next to the executable and builds there. when

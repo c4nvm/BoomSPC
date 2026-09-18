@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "theme.hpp"
 #include "ui.hpp"
+#include "update.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -17,10 +18,6 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #include "stb_image.h"
 #pragma GCC diagnostic pop
-
-#ifndef BOOMSPC_VERSION
-#define BOOMSPC_VERSION "dev"
-#endif
 
 namespace {
 SDL_Texture* g_logo = nullptr;
@@ -148,7 +145,7 @@ void draw_about_window(App& app) {
     ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.6f);
     ImGui::TextUnformatted("BoomSPC");
     ImGui::PopFont();
-    ImGui::Text("version %s", BOOMSPC_VERSION);
+    ImGui::Text("version %s", update::version_label().c_str());
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
     text_wrapped("SPC700 player and tracker-style editor for SNES music rips.");
     ImGui::PopStyleColor();

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(BoomSPC VERSION 0.1.0 LANGUAGES CXX)
+project(BoomSPC VERSION 0.4.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -130,7 +130,6 @@ endif()
 target_link_libraries(boomspc PRIVATE imgui snes_spc SDL2::SDL2 ZLIB::ZLIB Threads::Threads)
 
 target_compile_options(boomspc PRIVATE -Wall -Wextra)
-target_compile_definitions(boomspc PRIVATE BOOMSPC_VERSION="${PROJECT_VERSION}")
 # The logo and other assets live next to the executable; copied on every
 # build so an asset edit lands without relinking.
 add_custom_target(boomspc_assets ALL
