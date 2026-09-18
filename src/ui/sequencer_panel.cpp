@@ -475,6 +475,27 @@ void draw_sequencer_panel(App& app) {
     }
     if (app.seq_tab == 2) {
         ImGui::PopFont();
+        if (!app.arrangement_ack) {
+            // Blocks the view until acknowledged, once per run.
+            child_begin("arrpane", ImVec2(0, 0), 0, 0, true);
+            const float w = std::min(em(30), ImGui::GetContentRegionAvail().x - em(2));
+            ImGui::Dummy(ImVec2(0, em(2)));
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (ImGui::GetContentRegionAvail().x - w) * 0.5f);
+            if (child_begin("arr_notice", ImVec2(w, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY)) {
+                ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.3f);
+                ImGui::TextColored(theme().colors[TC_STATUS_EDIT], "Heavily experimental");
+                ImGui::PopFont();
+                text_wrapped("The arrangement view is not fully implemented and generally behaves oddly right now: expect wrong lengths, edits that do not land where you clicked, and displays that disagree with the tracker. The tracker and piano roll are the reliable views; nothing here is safe to rely on yet.");
+                ImGui::Spacing();
+                if (ImGui::Button("Show it anyway")) app.arrangement_ack = true;
+                ImGui::SameLine();
+                if (ImGui::Button("Back to the tracker")) app.seq_tab = 0;
+            }
+            child_end();
+            child_end();
+            panel_end();
+            return;
+        }
         draw_arrangement(app, pat_idx, head_row_f >= 0 ? head_row_f * tpr : -1.0f);
         panel_end();
         return;

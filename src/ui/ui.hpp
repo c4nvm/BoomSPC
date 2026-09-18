@@ -69,7 +69,8 @@ struct App {
     int  insert_fx_op = -1;              // command opcode the Effects panel asked to insert at the cursor
     int  value_dialog = -1;              // A_FADE / A_SCALE / A_RANDOMIZE popup to open, -1 = none
 
-    int   seq_tab = 0;                   // 0 = tracker grid, 1 = piano roll
+    int   seq_tab = 0;                   // 0 = tracker grid, 1 = piano roll, 2 = arrangement
+    bool  arrangement_ack = false;       // the experimental notice was dismissed this run
     int   roll_ins = -1;                 // instrument for placed notes, -1 = whatever the track has there
     int   roll_len_rows = 1;             // length of a placed note in rows
     float roll_zoom = 1.0f;              // horizontal zoom (0.05 .. 32)
