@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04   # SDL2 2.30; 22.04 has 2.0.20 which lacks SDL_RenderGetWindow
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,7 +62,7 @@ jobs:
           cp build/boomspc.exe build/spc2wav.exe build/spcdump.exe README.md LICENSE $pkg/
           cp -r assets $pkg/
           for exe in $pkg/*.exe; do
-            ldd "$exe" | grep -i '/ucrt64/' | awk '{print $3}' | xargs -r -I{} cp -n {} $pkg/
+            ldd "$exe" | { grep -i '/ucrt64/' || true; } | awk '{print $3}' | xargs -r -I{} cp -n {} $pkg/
           done
           ls $pkg
           zip -r $pkg.zip $pkg

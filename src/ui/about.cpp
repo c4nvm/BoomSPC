@@ -121,7 +121,11 @@ void logo_refresh() { logo_paint(); }
 
 void logo_load(void* sdl_renderer, const std::string& base_path) {
     auto* r = static_cast<SDL_Renderer*>(sdl_renderer);
+#if SDL_VERSION_ATLEAST(2, 0, 22)
     SDL_Window* w = SDL_RenderGetWindow(r);
+#else
+    SDL_Window* w = nullptr;   // no window icon on old SDL2
+#endif
     const char* names[] = {"assets/logo.png", "assets/logo.bmp", "logo.png"};
     for (const char* n : names) {
         for (const std::string& base : {base_path, std::string()}) {
