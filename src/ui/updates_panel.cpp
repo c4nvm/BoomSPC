@@ -27,7 +27,7 @@ void commit_entry(const char* hash, const char* date, const char* subject, const
     ImGui::PopStyleColor();
     if (mark_new) {
         ImGui::SameLine();
-        ImGui::TextColored(theme().colors[TC_NOTE], "new");
+        ImGui::TextColored(theme().colors[TC_VOL_MAX], "NEW!");
     }
     ImGui::Indent(em(1.2f));
     ImGui::TextUnformatted(subject);
@@ -84,6 +84,7 @@ void draw_updates_panel(App& app) {
     ImGuiWindowFlags flags = 0;
     if (app.updates_quiet) { flags |= ImGuiWindowFlags_NoFocusOnAppearing; app.focus_sequencer = app.show_sequencer; app.updates_quiet = false; }
     if (!panel_begin("Updates", &app.show_updates, flags)) { panel_end(); return; }
+    app.updates_seen = true;
     const BuildInfo& bi = build_info();
     const update::State st = update::state();
     Theme& th = theme();

@@ -292,7 +292,8 @@ int main(int argc, char** argv) {
         SDL_RenderPresent(renderer);
     }
 
-    if (!this_commit.empty()) std::snprintf(theme().last_seen_commit, sizeof theme().last_seen_commit, "%s", this_commit.c_str());
+    // NEW! marks stay until the changelog has actually been looked at.
+    if (!this_commit.empty() && app.updates_seen) std::snprintf(theme().last_seen_commit, sizeof theme().last_seen_commit, "%s", this_commit.c_str());
     theme().save("boomspc_theme.ini");
     actions_save("boomspc_keys.ini");
     if (!opt.record.empty()) { app.engine.set_capture(nullptr); write_wav_mono(opt.record, capture, Engine::kSampleRate); }

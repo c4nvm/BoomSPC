@@ -40,6 +40,7 @@ struct App {
     bool show_about       = false;
     bool show_updates     = false;
     bool updates_quiet    = false;   // open the Updates tab behind the Sequencer (a song is showing)
+    bool updates_seen     = false;   // the changelog was on screen this run, so its NEW! marks can clear
     bool restart          = false;   // quit and start the freshly built executable (main() does it)
     bool focus_path_box   = false;   // Ctrl+O: put the caret in the Player's path field
     bool toggle_fullscreen = false;  // handled by main()
