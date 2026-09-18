@@ -683,18 +683,27 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
 namespace {
 struct Range { uint16_t lo, hi; };
 
+// Only the events that play before the pattern ends count: a track without
+// its own terminator parses on into the next voice's bytes (Apple Kid's
+// Theme runs every voice but the first into its neighbour).
+size_t played_events(const Track& t) {
+    return t.used_events > 0 ? std::min<size_t>(t.used_events, t.events.size()) : t.events.size();
+}
+
 void track_ranges(const Track& t, std::vector<Range>& out) {
     if (!t.addr || t.events.empty()) return;
+    const size_t n = played_events(t);
     uint16_t lo = t.events.front().addr, hi = lo;
-    for (const Event& e : t.events) {
+    for (size_t i = 0; i < n; ++i) {
+        const Event& e = t.events[i];
         if (e.in_sub) continue;
         hi = std::max<uint16_t>(hi, uint16_t(e.addr + e.size));
     }
     out.push_back({lo, hi});
-    for (size_t i = 0; i < t.events.size(); ++i) {
+    for (size_t i = 0; i < n; ++i) {
         if (!t.events[i].in_sub || t.events[i].sub_iter != 0) continue;
         uint16_t slo = t.events[i].addr, shi = slo;
-        while (i < t.events.size() && t.events[i].in_sub && t.events[i].sub_iter == 0) {
+        while (i < n && t.events[i].in_sub && t.events[i].sub_iter == 0) {
             shi = std::max<uint16_t>(shi, uint16_t(t.events[i].addr + t.events[i].size));
             ++i;
         }
@@ -767,7 +776,7 @@ int pick_current_song(const uint8_t* ram, const Layout& L, const std::vector<Son
     return best >= 0 ? best : 0;
 }
 
-Position locate(const uint8_t* ram, const Layout& L, const Song& song) {
+Position locate(const uint8_t* ram, const Layout& L, const Song& song, const Position* prev) {
     (void)L;
     Position pos;
     for (int v = 0; v < 8; ++v) { pos.voice_event[v] = -1; pos.voice_tick[v] = -1; pos.voice_ptr[v] = 0; }
@@ -800,19 +809,48 @@ Position locate(const uint8_t* ram, const Layout& L, const Song& song) {
     pos.track_ptr_base = base;
 
     const Pattern& pat = song.patterns[pat_idx];
+    const bool same_pattern = prev && prev->valid && prev->order_index == order_idx;
+    // The event just behind each pointer. A subroutine body appears once per
+    // call and iteration at the same address, so a pointer inside one has
+    // several candidates: pointers only move forward within a pattern, so
+    // drop those before where the voice was last seen, then take the one
+    // nearest the voices that are unambiguous this frame.
+    std::vector<int> cands[8];
+    int reference = -1;
     for (int v = 0; v < 8; ++v) {
         uint16_t p = rd16(ram, base + v * 2);
         pos.voice_ptr[v] = p;
         const Track& t = pat.tracks[v];
         if (!t.addr || !p) continue;
-        int best = -1;
-        for (size_t i = 0; i < t.events.size(); ++i) {
-            const Event& e = t.events[i];
-            if (e.in_sub && e.sub_iter != 0) continue;
-            uint16_t end = uint16_t(e.addr + e.size);
-            if (end <= p && (best < 0 || end >= uint16_t(t.events[best].addr + t.events[best].size))) best = int(i);
+        const size_t n = played_events(t);
+        uint16_t best_end = 0;
+        bool any = false;
+        for (size_t i = 0; i < n; ++i) {
+            uint16_t end = uint16_t(t.events[i].addr + t.events[i].size);
+            if (end <= p && (!any || end > best_end)) { any = true; best_end = end; }
         }
-        if (best >= 0) { pos.voice_event[v] = best; pos.voice_tick[v] = t.events[best].tick; }
+        if (!any) continue;
+        const int floor_tick = same_pattern && prev->voice_tick[v] >= 0 ? prev->voice_tick[v] : 0;
+        std::vector<int> all;
+        for (size_t i = 0; i < n; ++i)
+            if (uint16_t(t.events[i].addr + t.events[i].size) == best_end) {
+                all.push_back(int(i));
+                if (t.events[i].tick >= floor_tick) cands[v].push_back(int(i));
+            }
+        if (cands[v].empty()) cands[v] = all;
+        if (cands[v].size() == 1) reference = std::max(reference, t.events[cands[v][0]].tick);
+    }
+    for (int v = 0; v < 8; ++v) {
+        if (cands[v].empty()) continue;
+        const Track& t = pat.tracks[v];
+        int pick = cands[v][0];
+        for (int c : cands[v]) {
+            const int dc = reference >= 0 ? std::abs(t.events[c].tick - reference) : t.events[c].tick;
+            const int dp = reference >= 0 ? std::abs(t.events[pick].tick - reference) : t.events[pick].tick;
+            if (dc < dp) pick = c;
+        }
+        pos.voice_event[v] = pick;
+        pos.voice_tick[v] = t.events[pick].tick;
     }
     return pos;
 }

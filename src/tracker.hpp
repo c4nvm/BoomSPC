@@ -23,9 +23,12 @@ struct Tracker {
     int64_t                last_samples = -1;     // audio clock at the last update (a restart rewinds it)
     // The driver can switch songs on its own (a rip taken with the next song
     // queued in the ports, a Follin slot change): update() re-picks the
-    // current song twice a second unless the user chose one by hand.
+    // current song twice a second unless the user chose one by hand, and
+    // every frame for the first second, when a dump's stale pointers give
+    // way to the song it was really about to start.
     bool                   song_pinned = false;
     double                 next_repick = 0;
+    int                    fast_repicks = 0;
     // Game rips usually carry the whole music bank; with this on, songs other
     // than the current one count as free space when a track has to grow.
     mutable bool           reclaim_other_songs = false;

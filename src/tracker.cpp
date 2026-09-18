@@ -20,6 +20,7 @@ void Tracker::reset() {
     rescans_left = 0;
     song_pinned = false;
     next_repick = 0;
+    fast_repicks = 60;
 }
 
 const nspc::Layout* Tracker::nspc_layout() const {
@@ -41,7 +42,8 @@ void Tracker::analyze(const EngineSnapshot& s) {
 void Tracker::update(const EngineSnapshot& s, double now) {
     if (!analyzed || !s.loaded) return;
     if (drv && !song_pinned && now >= next_repick) {
-        next_repick = now + 0.5;
+        next_repick = fast_repicks > 0 ? now : now + 0.5;
+        if (fast_repicks > 0) --fast_repicks;
         int pick = drv->pick_current_song(s.ram, songs);
         if (pick >= 0 && pick != song_index) {
             song_index = pick;

@@ -90,7 +90,7 @@ Pattern parse_pattern(const uint8_t* ram, const Layout& L, uint16_t addr);
 std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t* dsp = nullptr);
 int  pick_current_song(const uint8_t* ram, const Layout& L, const std::vector<Song>& songs);
 
-Position locate(const uint8_t* ram, const Layout& L, const Song& song);
+Position locate(const uint8_t* ram, const Layout& L, const Song& song, const Position* prev = nullptr);
 
 int         instrument_count(const uint8_t* ram, const Layout& L);
 Instrument  read_instrument(const uint8_t* ram, const Layout& L, int index);
@@ -141,7 +141,7 @@ public:
     bool       preview_regs(const uint8_t* ram, uint8_t note_byte, int instrument, uint8_t regs[8]) const override;
     std::vector<Song> find_songs(const uint8_t* ram, const uint8_t* dsp) const override;
     int      pick_current_song(const uint8_t* ram, const std::vector<Song>& songs) const override { return nspc::pick_current_song(ram, L, songs); }
-    Position locate(const uint8_t* ram, const Song& song, const Position* prev) const override { (void)prev; return nspc::locate(ram, L, song); }
+    Position locate(const uint8_t* ram, const Song& song, const Position* prev) const override { return nspc::locate(ram, L, song, prev); }
     double ticks_per_second(const uint8_t* ram) const override;
     bool   tempo_writes(const uint8_t* ram, double tps, std::vector<std::pair<uint16_t, uint8_t>>& out) const override;
     std::vector<uint8_t> serialize_track(const std::vector<Event>& events) const override { return nspc::serialize_track(events); }
