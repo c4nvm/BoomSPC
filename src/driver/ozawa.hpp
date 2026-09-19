@@ -14,7 +14,8 @@
 //   03          return, or end of track outside a call
 //   04 n        length multiplier (a note lasts 00's value * this)
 //   05 n        per-track parameter
-//   06/07 n l h repeat slot 1: loop back to l/h until the counter reaches n
+//   06 n l h    counter 1 += 1; jump to l/h unless it reached n (then clear)
+//   07 n l h    counter 1 += 1; jump to l/h when it reaches n (then clear)
 //   08 lo hi    jump
 //   09 m ...    note: one value per set bit in m, then wait. A voice in the
 //               track's mask but not in m keeps sounding. Values: 00-53 a
@@ -25,7 +26,7 @@
 //   0A n        echo delay      0B m ...  parameter block $04E0
 //   0C n        per-track       0D n      echo on/off
 //   0E          rest: wait without changing the notes
-//   0F/10 n l h repeat slot 2
+//   0F/10 n l h the same on counter 2
 //   11 n        echo feedback   12 n  echo FIR set
 //   13 n        echo volume     14 n  echo buffer address
 //   18-97       parameter write: the low nibble picks a 32-byte block at
@@ -33,7 +34,9 @@
 //
 // Songs are not grouped in ARAM: the table of 3-byte {track, lo, hi} records
 // holds one entry per track and the SNES starts each one separately, so the
-// set that is playing comes from the four live pointers.
+// set that is playing comes from the four live pointers. A driver may keep
+// a second table for the song numbers past its compare (Prime Goal 2 puts
+// numbers $60+ at $F400).
 //
 // The tracker shows one column per DSP voice, not per track: column v is
 // the program of the track whose 01 mask has bit v, decoded for that bit
@@ -56,6 +59,8 @@ struct Layout {
     uint8_t  state_zp = 0;     // per-track run state at state_zp + track*2, 0 = stopped
     uint8_t  mask_zp = 0;      // live 01 mask at mask_zp + track*2, 0 = unknown
     int      entries = 0;      // records in the song table
+    uint16_t song_table2 = 0;  // table for song numbers past the driver's compare (Prime Goal 2: $60+)
+    int      entries2 = 0;
     bool valid() const { return song_table && entries > 0; }
 };
 
@@ -105,6 +110,7 @@ public:
     int  min_notes() const override { return 2; }
     int  jump_target(const seq::Event& e) const override;
     void select_song(uint16_t header) const override;
+    int  pick_current_song(const uint8_t* ram, const std::vector<seq::Song>& songs) const override;
     seq::Position locate(const uint8_t* ram, const seq::Song& song, const seq::Position* prev) const override;
     stream::State edit_state(const std::vector<seq::Event>& ev) const override;
 
