@@ -30,16 +30,16 @@ const CmdSpec kCmds1[0x20] = {
     {2, "Ins", "Instrument", FxClass::Instrument},                       // 89
     {2, "Tmp", "Tempo", FxClass::Speed},                                 // 8A
     {2, "Trn", "Transpose", FxClass::Pitch},                             // 8B
-    {2, "NtP", "Note parameter (stored per note, never read by this build)", FxClass::Misc},   // 8C
-    {2, "Dtn", "Detune (signed, added to the pitch)", FxClass::Pitch},   // 8D
-    {2, "Gat", "Gate: a note sounds length * n / 256 ticks (0 = full)", FxClass::Time},   // 8E
+    {2, "???", "Unknown (cleared when the note ends)", FxClass::Misc},   // 8C
+    {2, "???", "Unknown", FxClass::Misc},                                // 8D
+    {2, "???", "Unknown", FxClass::Misc},                                // 8E
     {2, "MVl", "Master volume", FxClass::Volume},                        // 8F
     {3, "VlP", "Volume and pan", FxClass::Volume},                       // 90
     {2, "Vol", "Volume", FxClass::Volume},                               // 91
     {2, "Pan", "Panning", FxClass::Panning},                             // 92
     {3, "VlF", "Volume fade", FxClass::Volume},                          // 93
     {4, "PnF", "Pan fade", FxClass::Panning},                            // 94
-    {3, "EVl", "Echo volume L, R", FxClass::Sys1},                       // 95
+    {3, "???", "Unknown", FxClass::Misc},                                // 95
     {3, "Ech", "Echo parameters", FxClass::Sys1},                        // 96
     {2, "EcV", "Echo voices", FxClass::Sys1},                            // 97
     {5, "Vib", "Vibrato (delay, rate, depth, step)", FxClass::Pitch},    // 98
@@ -99,7 +99,6 @@ const CmdSpec kCmds2[0x2C] = {
     {1, "???", "Unknown", FxClass::Misc},                                // AB
 };
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
-const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 const CmdSpec kSlur = {1, "Slr", "Slur into the next note", FxClass::Time};
 }
 
@@ -140,7 +139,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 
 const CmdSpec& AsciiDriver::spec(uint8_t op) const {
     if (op == 0xFF) return kSlur;
-    if (op < 0x80 || op >= L.note_base) return kUnknown;
+    if (op < 0x80 || op >= L.note_base) return kNop;
     return L.version == 1 ? kCmds1[op - 0x80] : kCmds2[op - 0x80];
 }
 
