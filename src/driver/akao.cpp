@@ -145,6 +145,8 @@ void fill_rev3(Layout& L) {
         {0x27, Kind::CondJump, "CJp", "Conditional jump (pass, address)", FxClass::Song},
         {0x28, Kind::Jump, "Jmp", "Jump", FxClass::Song},
         {0x29, Kind::Effect, "CJc", "CPU-controlled jump", FxClass::Song},
+        {0x2A, Kind::Effect, "CJR", "Reset the conditional jump counter", FxClass::Song},
+        {0x2B, Kind::Effect, "MvX", "Instrument exempt from the master volume", FxClass::Volume},
     };
     for (const D& e : d) set(L.cmds[e.ofs], e.k, e.code, e.name, e.cls);
 }
