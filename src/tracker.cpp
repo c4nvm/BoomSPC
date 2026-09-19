@@ -133,13 +133,25 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
         }
     }
     if (song_index >= 0) {
-        const seq::Song& sg = songs[size_t(song_index)];
-        for (int a = sg.order_addr; a < sg.order_end; ++a) reclaimable[a] = false;
-        for (const seq::Pattern& p : sg.patterns) {
-            for (int a = p.addr; a < p.addr + 16; ++a) reclaimable[a & 0xFFFF] = false;
-            for (const seq::Track& t : p.tracks)
-                for (const Event& e : t.events)
-                    for (int k = 0; k < e.size; ++k) reclaimable[(e.addr + k) & 0xFFFF] = false;
+        std::vector<bool> mine(0x10000, false);   // every byte of the current song
+        auto walk = [&](const seq::Song& sg, auto&& f) {
+            for (int a = sg.order_addr; a < sg.order_end; ++a) f(a);
+            for (const seq::Pattern& p : sg.patterns) {
+                for (int a = p.addr; a < p.addr + 16; ++a) f(a);
+                for (const seq::Track& t : p.tracks)
+                    for (const Event& e : t.events)
+                        for (int k = 0; k < e.size; ++k) f(e.addr + k);
+            }
+        };
+        walk(songs[size_t(song_index)], [&](int a) { mine[a & 0xFFFF] = true; reclaimable[a & 0xFFFF] = false; });
+        // A song that shares bytes with the current one is the same music seen
+        // from another entry point (a pattern of it listed as a song of its
+        // own); handing out its bytes would cut holes in what is playing.
+        for (size_t si = 0; si < songs.size(); ++si) {
+            if (int(si) == song_index) continue;
+            bool shared = false;
+            walk(songs[si], [&](int a) { if (mine[a & 0xFFFF]) shared = true; });
+            if (shared) walk(songs[si], [&](int a) { reclaimable[a & 0xFFFF] = false; });
         }
     }
 
