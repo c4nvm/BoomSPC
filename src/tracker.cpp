@@ -108,12 +108,30 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
         if (start == 0xFFFF || (start == 0 && loop == 0 && i > 0)) break;
         if (start >= 0x200 && start < 0xFFC0 && loop >= start) starts.push_back(start);
     }
+    int samples_end = 0;
     for (int start : starts) {
         int limit = 0x10000;
         for (int o : starts) if (o > start) limit = std::min(limit, o);
         brr::Info info = brr::scan(s.ram, uint16_t(start));
         int end = info.truncated || info.blocks > 0x1000 ? limit : std::min(limit, start + info.blocks * 9);
         for (int a = start; a < end; ++a) reserved[a] = true;
+        samples_end = std::max(samples_end, end);
+    }
+    // Everything below the first song header counts as the driver's, but a
+    // long run of $FF between the last sample and the songs is fill the
+    // loader never wrote (Smart Ball keeps 10 KB there): hand it out, keeping
+    // clear of the echo buffer and the directory. Zero runs stay reserved:
+    // they may be the driver's own variables.
+    if (spc_space && samples_end > 0 && samples_end < driver_end) {
+        for (int a = samples_end; a < driver_end;) {
+            if (s.ram[a] != 0xFF) { ++a; continue; }
+            int b = a;
+            while (b < driver_end && s.ram[b] == 0xFF) ++b;
+            if (b - a >= 64)
+                for (int k = a; k < b; ++k)
+                    if (!(k >= esa && k < esa + echo_len) && !(k >= dir && k < dir + 0x400)) reserved[k] = false;
+            a = b;
+        }
     }
     const std::vector<bool> hard = reserved;   // driver, echo, directory, samples: never handed out, even as another song's bytes
     std::vector<bool> reclaimable(0x10000, false);
