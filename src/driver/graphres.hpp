@@ -14,6 +14,7 @@
 //   F9 rel  call (two levels)   F8  return   FA rel  jump   FF  end
 //   FE  slur: the next note does not retrigger when it has the same key
 //   EC r  gate (r/8)   F1 v  volume   F4 p  pan   F7 a d  ADSR   FC i  instrument
+//   EF lo hi  pitch offset in DSP units   FB n  pitch envelope table n
 // One tick per timer-0 event (latch $85: about 60 per second).
 #pragma once
 
