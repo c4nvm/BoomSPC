@@ -271,7 +271,7 @@ void App::play_from(int order, int tick) {
     const bool from_start = !(now.valid && !engine.seeking() && (now_order < order || (now_order == order && now_tick >= 0 && now_tick <= tick)));
     struct State {
         std::shared_ptr<seq::Song> song;
-        const seq::Driver* drv;
+        std::shared_ptr<seq::Driver> drv;   // kept alive here: a rescan on the UI thread may replace the tracker's
         int order, tick;
         double tps;                 // song ticks per output sample second
         seq::Position prev;
@@ -282,7 +282,7 @@ void App::play_from(int order, int tick) {
     };
     auto st = std::make_shared<State>();
     st->song = std::make_shared<seq::Song>(*sg);
-    st->drv = tracker.drv.get();
+    st->drv = tracker.drv;
     st->order = order; st->tick = tick;
     st->tps = tracker.drv->ticks_per_second(snap.ram) * engine.tempo() / 256.0;
     seek_result = std::make_shared<SeekResult>();

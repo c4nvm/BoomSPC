@@ -53,7 +53,8 @@ void Tracker::update(const EngineSnapshot& s, double now, bool repick) {
     const bool restarted = s.sample_pairs < last_samples;
     last_samples = s.sample_pairs;
     if (song()) pos = drv->locate(s.ram, *song(), restarted ? nullptr : &pos);
-    if (!pos.valid && rescans_left > 0 && now >= next_rescan) {
+    // No rescan mid-seek either: the audio thread is walking this song.
+    if (!pos.valid && repick && rescans_left > 0 && now >= next_rescan) {
         --rescans_left;
         next_rescan = now + 0.75;
         int keep = rescans_left;

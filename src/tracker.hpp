@@ -12,7 +12,7 @@
 #include "engine.hpp"
 
 struct Tracker {
-    std::unique_ptr<seq::Driver> drv;   // null = no supported driver
+    std::shared_ptr<seq::Driver> drv;   // null = no supported driver; a seek in progress holds its own reference
     std::vector<seq::Song> songs;
     int                    song_index = -1;
     seq::Position          pos;
