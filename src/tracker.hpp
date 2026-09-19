@@ -72,6 +72,10 @@ struct Tracker {
     // sample data. Returns -1 if nothing big enough exists.
     static int extent_of(const seq::Track& t);
     void release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, int len, const seq::Track* skip = nullptr);
+    // Bytes a rewrite left behind while a voice was still playing them; freed
+    // once every live pointer has left (flush_releases, called each frame).
+    std::vector<std::pair<uint16_t, uint16_t>> pending_release;
+    void flush_releases(const EngineSnapshot& s, Engine& eng);
     int find_free_space(const EngineSnapshot& s, int need) const;
     std::vector<bool> free_map(const EngineSnapshot& s, uint8_t fill) const;
     bool bytes_free(const EngineSnapshot& s, int from, int len) const;

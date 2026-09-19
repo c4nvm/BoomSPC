@@ -186,6 +186,20 @@ int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
     return -1;
 }
 
+void Tracker::flush_releases(const EngineSnapshot& s, Engine& eng) {
+    if (pending_release.empty() || !drv) return;
+    for (size_t i = 0; i < pending_release.size();) {
+        const auto [lo, hi] = pending_release[i];
+        bool busy = false;
+        for (int v = 0; v < 8 && !busy; ++v) busy = pos.valid && pos.voice_ptr[v] >= lo && pos.voice_ptr[v] <= hi;
+        if (busy) { ++i; continue; }
+        eng.begin_edit();
+        release_bytes(s, eng, lo, hi - lo);
+        eng.end_edit();
+        pending_release.erase(pending_release.begin() + long(i));
+    }
+}
+
 bool Tracker::bytes_free(const EngineSnapshot& s, int from, int len) const {
     if (from + len > 0x10000) return false;
     for (uint8_t fill : {uint8_t(0x00), uint8_t(0xFF)}) {
@@ -249,19 +263,24 @@ void Tracker::release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, i
     (void)s;
     std::vector<bool> used(0x10000, false);
     auto replaced = [&](const seq::Track& t) { return skip ? &t == skip : t.addr == at; };
+    // Only the events a track plays count: an N-SPC track without its own
+    // terminator parses on through its neighbours' bytes.
     for (const seq::Song& sg : songs)
         for (const seq::Pattern& p : sg.patterns)
             for (const seq::Track& t : p.tracks) {
                 if (!t.addr || replaced(t)) continue;
-                for (const Event& e : t.events) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
+                const size_t n = t.used_events > 0 ? std::min<size_t>(size_t(t.used_events), t.events.size()) : t.events.size();
+                for (size_t i = 0; i < n; ++i) for (int k = 0; k < t.events[i].size; ++k) used[(t.events[i].addr + k) & 0xFFFF] = true;
             }
     for (const seq::Song& sg : songs)
         for (const seq::Pattern& p : sg.patterns)
             for (const seq::Track& t : p.tracks)
                 if (replaced(t)) for (const Event& e : t.events) if (e.in_sub) for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
     const uint8_t zero = 0;
+    int zeroed = 0;
     for (int a = at; a < at + len && a < 0x10000; ++a)
-        if (!used[size_t(a)]) eng.write_ram(uint16_t(a), &zero, 1);
+        if (!used[size_t(a)]) { eng.write_ram(uint16_t(a), &zero, 1); ++zeroed; }
+    if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "release_bytes %04X+%d: zeroed %d\n", at, len, zeroed);
 }
 
 Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, std::vector<Event> events) {
@@ -368,6 +387,11 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
             };
             if (!move_pointer(snap.ram, live, Engine::kLiveOnly)) moved_note = "";
             move_pointer(eng.image_ram(), image, Engine::kImageOnly);
+            if (!relocated && !piecewise) {
+                // Rewritten in place and shorter: the tail is free now.
+                const int extent = extent_of(t), tail = extent - int(bytes.size());
+                if (tail > 0) release_bytes(snap, eng, uint16_t(dest + bytes.size()), tail, &t);
+            }
             if (relocated && *moved_note) {
                 if (!piecewise) old.push_back({t.addr, uint16_t(t.addr + extent_of(t))});
                 for (auto& o : old) {   // except what the block itself now occupies
@@ -429,6 +453,18 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         drv->track_pointer_writes(*sg, pattern_idx, voice, dest, ptr);
         if (ptr.empty()) { uint8_t w[2] = {uint8_t(dest & 0xFF), uint8_t(dest >> 8)}; eng.write_ram(uint16_t(pat.addr + voice * 2), w, 2); }
         for (auto& w : ptr) eng.write_ram(w.first, &w.second, 1);
+    }
+    // What the old bytes no longer hold goes back to the free pool: the whole
+    // track when it moved, the tail when it shrank in place. A voice still
+    // reading there keeps its bytes until it has left (flush_releases).
+    if (t.addr && t.end_addr > t.addr) {
+        const uint16_t lo = relocated ? t.addr : uint16_t(dest + bytes.size()), hi = t.end_addr;
+        if (lo < hi) {
+            const uint16_t live = pos.valid ? pos.voice_ptr[voice] : 0;
+            if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "release %04X-%04X (live %04X)\n", lo, hi, live);
+            if (live >= lo && live <= hi) pending_release.push_back({lo, hi});
+            else release_bytes(snap, eng, lo, hi - lo, &t);
+        }
     }
     eng.end_edit();
 

@@ -679,6 +679,7 @@ void ui_draw(App& app) {
     app.engine.snapshot(app.snap);
     refresh_crash_context(app);
     app.tracker.update(app.snap, ImGui::GetTime(), !app.engine.seeking());
+    app.tracker.flush_releases(app.snap, app.engine);
     if (app.seek_result && !app.engine.seeking()) {
         char b[96];
         if (app.seek_result->found) std::snprintf(b, sizeof b, "playing from order %d row %d", app.seek_result->order, app.seek_result->row);
