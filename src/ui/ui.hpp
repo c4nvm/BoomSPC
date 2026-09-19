@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -18,6 +19,7 @@ struct App {
     std::string source_path; // the .spc that was opened (or the project's source)
     std::string project_path;// current .boomspc, empty = unsaved
     std::string window_title;// main() applies changes to the SDL window
+    std::string crash_notice;// crash log path when the last run died; a popup shows it once
 
     Tracker tracker;
 
@@ -118,6 +120,9 @@ struct App {
     void after_edit();
     double song_bpm() const;
     std::string fit_grid();
+    // Outcome of the last play_from seek, filled by the audio thread.
+    struct SeekResult { bool found = false; int order = 0, row = 0; };
+    std::shared_ptr<SeekResult> seek_result;
     void play_from(int order, int tick);
     bool   set_song_bpm(double bpm);
 };
@@ -131,6 +136,7 @@ void draw_memory_panel(App& app);
 void draw_sequencer_panel(App& app);
 bool draw_piano_roll(App& app, int pat_idx, float head_tick);
 void draw_arrangement(App& app, int pat_idx, float head_tick);
+int  ruler_label_step(int rows, float px_per_row, float char_w);
 int  preview_voice(const App& app);
 void draw_instruments_panel(App& app);
 void draw_effects_panel(App& app);

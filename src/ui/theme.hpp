@@ -71,6 +71,7 @@ struct Theme {
 
     bool load(const char* path);
     bool save(const char* path) const;
+    std::string text() const;   // the ini contents
 
     void apply_widget_colors() const;
 };

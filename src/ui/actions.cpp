@@ -246,17 +246,25 @@ bool actions_load(const char* path) {
     return true;
 }
 
-bool actions_save(const char* path) {
+std::string actions_text() {
     ensure_init();
-    FILE* f = std::fopen(path, "w");
-    if (!f) return false;
-    std::fprintf(f, "# BoomSPC key bindings: ACTION=chord[, chord]. Empty = unbound.\n");
+    std::string out = "# BoomSPC key bindings: ACTION=chord[, chord]. Empty = unbound.\n";
     for (int i = 0; i < A_COUNT; ++i) {
         char a[40], b[40];
         chord_format(g_bind[i].c[0], a, sizeof a, false);
         chord_format(g_bind[i].c[1], b, sizeof b, false);
-        std::fprintf(f, "%s=%s%s%s\n", kDefs[i].id, a, *b ? ", " : "", b);
+        out += kDefs[i].id; out += '='; out += a;
+        if (*b) { out += ", "; out += b; }
+        out += '\n';
     }
+    return out;
+}
+
+bool actions_save(const char* path) {
+    FILE* f = std::fopen(path, "w");
+    if (!f) return false;
+    const std::string t = actions_text();
+    std::fwrite(t.data(), 1, t.size(), f);
     std::fclose(f);
     return true;
 }

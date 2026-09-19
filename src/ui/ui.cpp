@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "actions.hpp"
+#include "crash.hpp"
+#include "paths.hpp"
 #include "snsf.hpp"
 #include "file_dialog.hpp"
 #include "fonts.hpp"
@@ -118,7 +120,7 @@ bool App::open_project(const std::string& path) {
     project_path = path;
     std::strncpy(path_buf, path.c_str(), sizeof path_buf - 1);
     path_buf[sizeof path_buf - 1] = 0;
-    if (meta.song >= 0 && meta.song < int(tracker.songs.size())) tracker.song_index = meta.song;
+    if (meta.song >= 0 && meta.song < int(tracker.songs.size())) { tracker.song_index = meta.song; tracker.song_pinned = true; }
     if (meta.ticks_per_row > 0) ticks_per_row = std::clamp(meta.ticks_per_row, 1, 96);
     if (meta.ticks_per_beat > 0) ticks_per_beat = std::clamp(meta.ticks_per_beat, 1, 192);
     octave = std::clamp(meta.octave, 1, 6);
@@ -191,6 +193,7 @@ void App::dialog_export_spc() {
 }
 
 void App::after_edit() {
+    tracker.song_pinned = true;   // the song being edited must not be swapped out from under the user
     engine.snapshot(snap);
     tracker.reparse(snap);
 }
@@ -240,6 +243,20 @@ bool App::preview_regs_heard(const seq::Track& track, int voice, int ev_index, i
     return true;
 }
 
+// Rows between ruler labels: a multiple of the highlight spacing, doubled
+// until the numbers have room to sit side by side at this zoom.
+int ruler_label_step(int rows, float px_per_row, float char_w) {
+    const Theme& th = theme();
+    const int base = th.hex_rows ? 16 : 10;
+    int digits = 1;
+    for (int r = std::max(1, rows - 1); r >= base; r /= base) ++digits;
+    digits = std::max(digits, 2);
+    const float need = (digits + 1) * char_w;
+    int step = std::max(1, th.row_hi1);
+    while (px_per_row > 0 && step * px_per_row < need && step < rows) step *= 2;
+    return step;
+}
+
 void App::play_from(int order, int tick) {
     if (!tracker.drv || !tracker.song() || !engine.loaded()) return;
     const seq::Song* sg = tracker.song();
@@ -260,14 +277,20 @@ void App::play_from(int order, int tick) {
         seq::Position prev;
         uint8_t bytes[32]; bool have_bytes = false;
         int last_tick = -1; int64_t last_sample = 0;
+        int last_order = -1, wraps = 0;      // orders crossed without reaching the target
+        std::shared_ptr<SeekResult> result;
     };
     auto st = std::make_shared<State>();
     st->song = std::make_shared<seq::Song>(*sg);
     st->drv = tracker.drv.get();
     st->order = order; st->tick = tick;
     st->tps = tracker.drv->ticks_per_second(snap.ram) * engine.tempo() / 256.0;
+    seek_result = std::make_shared<SeekResult>();
+    seek_result->order = order; seek_result->row = tick / std::max(1, ticks_per_row);
+    st->result = seek_result;
+    const int order_count = int(sg->orders.size());
     const uint16_t base = now.track_ptr_base; const int span = std::min<int>(now.track_ptr_span, 32);
-    auto reached = [st, base, span](const uint8_t* ram, int64_t sample) {
+    auto reached = [st, base, span, order_count](const uint8_t* ram, int64_t sample) {
         bool changed = !st->have_bytes || !base || std::memcmp(ram + base, st->bytes, size_t(span)) != 0;
         if (changed) {
             if (base) { std::memcpy(st->bytes, ram + base, size_t(span)); st->have_bytes = true; }
@@ -275,21 +298,28 @@ void App::play_from(int order, int tick) {
             if (p.valid) {
                 st->prev = p;
                 const int ord = p.order_index >= 0 ? p.order_index : 0;
+                // A rip that starts past the target, or loops back over it, would
+                // otherwise run the whole limit out in silence.
+                if (ord != st->last_order) {
+                    st->last_order = ord;
+                    if (++st->wraps > order_count + 1) return true;
+                }
                 if (ord == st->order) {
                     int o = -1;
                     for (int v = 0; v < 8; ++v) o = std::max(o, p.voice_tick[v]);
-                    if (o >= st->tick) return true;
+                    if (o >= st->tick) { st->result->found = true; return true; }
                     if (o > st->last_tick) { st->last_tick = o; st->last_sample = sample; }
                 } else st->last_tick = -1;
             }
         }
-        if (st->tps > 0 && st->last_tick >= 0 && double(sample - st->last_sample) >= (st->tick - st->last_tick) / st->tps * Engine::kSampleRate) return true;
+        if (st->tps > 0 && st->last_tick >= 0 && double(sample - st->last_sample) >= (st->tick - st->last_tick) / st->tps * Engine::kSampleRate) { st->result->found = true; return true; }
         return false;
     };
     double limit = 600.0;
-    if (st->tps > 0) { double total = 0; for (const seq::Pattern& p : sg->patterns) total += p.length_ticks; limit = std::clamp(2.0 * total / st->tps + 5.0, 5.0, 900.0); }
+    if (st->tps > 0) { double total = 0; for (const seq::Pattern& p : sg->patterns) total += p.length_ticks; limit = std::clamp(2.0 * total / st->tps + 5.0, 5.0, 120.0); }
+    tracker.song_pinned = true;
     engine.seek(reached, from_start, limit);
-    char b[96]; std::snprintf(b, sizeof b, "playing from order %d row %d%s", order, tick / std::max(1, ticks_per_row), from_start ? "" : " (ahead: no restart)");
+    char b[96]; std::snprintf(b, sizeof b, "seeking to order %d row %d%s", order, tick / std::max(1, ticks_per_row), from_start ? "" : " (ahead: no restart)");
     status = b;
 }
 
@@ -398,6 +428,7 @@ void next_order(App& app, int d) {
 void run_action(App& app, int action) {
     Theme& th = theme();
     Engine& eng = app.engine;
+    if (action >= 0 && action < A_COUNT) crash::set_context(crash::CTX_ACTION, action_def(Action(action)).id);
     switch (action) {
         case A_PLAY_TOGGLE: if (eng.loaded()) eng.toggle(); break;
         case A_PLAY:        if (eng.loaded()) eng.play(); break;
@@ -598,11 +629,58 @@ static void draw_dockspace(App& app) {
     ImGui::DockBuilderFinish(id);
 }
 
+// What the crash log says about this session; refreshed when it changes.
+void refresh_crash_context(const App& app) {
+    static std::string file, project, driver, status;
+    static int song = -2;
+    if (app.source_path != file) crash::set_context(crash::CTX_FILE, (file = app.source_path).c_str());
+    if (app.project_path != project) crash::set_context(crash::CTX_PROJECT, (project = app.project_path).c_str());
+    if (app.tracker.driver_name != driver) crash::set_context(crash::CTX_DRIVER, (driver = app.tracker.driver_name).c_str());
+    if (app.tracker.song_index != song) {
+        song = app.tracker.song_index;
+        char b[160];
+        const seq::Song* s = app.tracker.song();
+        std::snprintf(b, sizeof b, "%d%s%s", song, s ? " " : "", s ? s->label.c_str() : "");
+        crash::set_context(crash::CTX_SONG, b);
+    }
+    if (app.status != status) crash::set_context(crash::CTX_STATUS, (status = app.status).c_str());
+}
+
+void draw_crash_notice(App& app) {
+    const char* id = "BoomSPC crashed last time";
+    if (app.crash_notice.empty()) return;
+    if (!ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
+    ImGui::SetNextWindowSize(ImVec2(em(30), 0), ImGuiCond_Appearing);
+    if (!ImGui::BeginPopupModal(id, nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize)) return;
+    ImGui::PushTextWrapPos(em(29));
+    text_wrapped("The previous session ended with a crash. What happened was written to crash.log; please send that file (and the .spc or project you had open) to the BoomSPC Discord or GitHub issues so it can be fixed.");
+    ImGui::Spacing();
+    ImGui::PushFont(fonts().mono, ImGui::GetStyle().FontSizeBase * 0.85f);
+    text_wrapped("%s", app.crash_notice.c_str());
+    ImGui::PopFont();
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+    if (ImGui::Button("Open folder")) open_config_dir();
+    ImGui::SameLine();
+    if (ImGui::Button("Copy path")) ImGui::SetClipboardText(app.crash_notice.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("OK")) { app.crash_notice.clear(); ImGui::CloseCurrentPopup(); }
+    ImGui::EndPopup();
+}
+
 void ui_draw(App& app) {
     theme().apply_widget_colors();
     logo_refresh();
     app.engine.snapshot(app.snap);
-    app.tracker.update(app.snap, ImGui::GetTime());
+    refresh_crash_context(app);
+    app.tracker.update(app.snap, ImGui::GetTime(), !app.engine.seeking());
+    if (app.seek_result && !app.engine.seeking()) {
+        char b[96];
+        if (app.seek_result->found) std::snprintf(b, sizeof b, "playing from order %d row %d", app.seek_result->order, app.seek_result->row);
+        else std::snprintf(b, sizeof b, "order %d row %d never came round: the rip starts past it", app.seek_result->order, app.seek_result->row);
+        app.status = b;
+        app.seek_result.reset();
+    }
     if (app.engine.snsf() && app.tracker.drv && app.tracker.song()) {
         const int bank = app.tracker.drv->song_bank(*app.tracker.song());
         if (bank >= 0 && bank != app.engine.bank_window()) { app.engine.set_bank_window(bank); app.engine.snapshot(app.snap); app.tracker.reparse(app.snap); }
@@ -619,8 +697,6 @@ void ui_draw(App& app) {
             if (ImGui::MenuItem("Save project", sc(A_SAVE_PROJECT), false, app.engine.loaded())) run_action(app, A_SAVE_PROJECT);
             if (ImGui::MenuItem("Save project as...", sc(A_SAVE_PROJECT_AS), false, app.engine.loaded())) run_action(app, A_SAVE_PROJECT_AS);
             ImGui::Separator();
-            if (ImGui::MenuItem("Restart song", sc(A_PLAY_START), false, app.engine.loaded())) run_action(app, A_PLAY_START);
-            ImGui::Separator();
             if (ImGui::MenuItem("Undo", sc(A_UNDO), false, app.engine.can_undo())) run_action(app, A_UNDO);
             if (ImGui::MenuItem("Redo", sc(A_REDO), false, app.engine.can_redo())) run_action(app, A_REDO);
             ImGui::Separator();
@@ -628,6 +704,18 @@ void ui_draw(App& app) {
             if (ImGui::MenuItem("Export WAV...", sc(A_EXPORT_WAV), false, app.engine.loaded())) run_action(app, A_EXPORT_WAV);
             ImGui::Separator();
             if (ImGui::MenuItem("Quit", sc(A_QUIT))) run_action(app, A_QUIT);
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Playback")) {
+            const bool on = app.engine.loaded();
+            if (ImGui::MenuItem(app.engine.playing() || app.engine.seeking() ? "Pause" : "Play", sc(A_PLAY_TOGGLE), false, on)) run_action(app, A_PLAY_TOGGLE);
+            if (ImGui::MenuItem("Stop", sc(A_STOP), false, on)) run_action(app, A_STOP);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Play from start", sc(A_PLAY_START), false, on)) run_action(app, A_PLAY_START);
+            if (ImGui::MenuItem("Play from cursor", sc(A_PLAY_CURSOR), false, on)) run_action(app, A_PLAY_CURSOR);
+            ImGui::Separator();
+            ImGui::MenuItem("Follow playback", sc(A_FOLLOW_TOGGLE), &app.follow);
+            ImGui::MenuItem("Metronome", sc(A_METRONOME_TOGGLE), &app.metronome);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit")) {
@@ -692,6 +780,8 @@ void ui_draw(App& app) {
         if (ImGui::BeginMenu("Help")) {
             ImGui::MenuItem("Keyboard shortcuts", sc(A_WIN_SHORTCUTS), &app.show_shortcuts);
             ImGui::MenuItem("Updates and changelog", sc(A_WIN_UPDATES), &app.show_updates);
+            if (ImGui::MenuItem("Open settings folder")) open_config_dir();
+            ImGui::SetItemTooltip("%s\nini files and crash.log", config_dir().c_str());
             ImGui::Separator();
             ImGui::MenuItem("About BoomSPC", sc(A_WIN_ABOUT), &app.show_about);
             ImGui::EndMenu();
@@ -733,5 +823,6 @@ void ui_draw(App& app) {
     if (app.show_dsp)    draw_dsp_panel(app);
     if (app.show_memory) draw_memory_panel(app);
     if (app.show_demo)   ImGui::ShowDemoWindow(&app.show_demo);
+    draw_crash_notice(app);
     draw_command_palette(app);
 }

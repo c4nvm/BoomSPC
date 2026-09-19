@@ -4,6 +4,8 @@
 // guiActions table does. Bindings are saved to boomspc_keys.ini.
 #pragma once
 
+#include <string>
+
 #include "imgui.h"
 
 enum ActionScope { SCOPE_GLOBAL, SCOPE_PATTERN };
@@ -69,3 +71,4 @@ ImGuiKey chord_capture(Chord& out);
 int  action_by_id(const char* id);
 bool actions_load(const char* path);
 bool actions_save(const char* path);
+std::string actions_text();   // the ini contents

@@ -9,7 +9,9 @@
 
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
+#include "crash.hpp"
 #include "imgui_impl_sdlrenderer2.h"
+#include "paths.hpp"
 #include "ui/actions.hpp"
 #include "ui/fonts.hpp"
 #include "ui/theme.hpp"
@@ -113,14 +115,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    migrate_legacy_config();
+    crash::install(config_path("crash.log"));
+    const std::string theme_ini = config_path("boomspc_theme.ini"), keys_ini = config_path("boomspc_keys.ini");
+    static const std::string imgui_ini = config_path("imgui.ini");
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ImGui::GetIO().IniFilename = imgui_ini.c_str();
     ImGui::StyleColorsDark();
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer2_Init(renderer);
 
-    if (!theme().load("boomspc_theme.ini")) {
+    if (!theme().load(theme_ini.c_str())) {
 #ifdef _WIN32
         // Half the display's scaling: sharp fonts read fine smaller than
         // the OS would blow them up to.
@@ -129,7 +137,7 @@ int main(int argc, char** argv) {
         theme().font_size_pattern = std::round(theme().font_size_pattern * f);
 #endif
     }
-    actions_load("boomspc_keys.ini");
+    actions_load(keys_ini.c_str());
     {
         char* base = SDL_GetBasePath();
         fonts_set_base_path(base ? base : "");
@@ -139,6 +147,7 @@ int main(int argc, char** argv) {
     }
     App app;
     app.update_title();
+    if (crash::take_pending()) app.crash_notice = crash::log_path();
     if (std::string err = app.engine.init(); !err.empty()) {
         app.status = "Audio init failed: " + err;
         std::fprintf(stderr, "%s\n", app.status.c_str());
@@ -151,6 +160,7 @@ int main(int argc, char** argv) {
     std::string this_commit = build_info().commit;
     if (!this_commit.empty() && this_commit.back() == '+') this_commit.pop_back();
     const bool just_updated = *theme().last_seen_commit && this_commit != theme().last_seen_commit;
+    if (!this_commit.empty()) std::snprintf(theme().last_seen_commit, sizeof theme().last_seen_commit, "%s", this_commit.c_str());
     bool update_announced = false;
     if (!headless) {
         if (theme().updates_at_startup || just_updated) { app.show_updates = true; app.updates_quiet = app.engine.loaded(); }
@@ -167,6 +177,13 @@ int main(int argc, char** argv) {
     int mouse_down = 0;    // frames the button stays down
     int rmouse_down = 0;
     std::string pending_shot;
+    // Settings go to disk as they change, so a crash loses nothing.
+    std::string theme_written, keys_written;   // last contents written; empty = nothing yet
+    Uint32 next_autosave = SDL_GetTicks() + 2000;
+    auto autosave = [&] {
+        if (std::string t = theme().text(); t != theme_written && theme().save(theme_ini.c_str())) theme_written = std::move(t);
+        if (std::string t = actions_text(); t != keys_written && actions_save(keys_ini.c_str())) keys_written = std::move(t);
+    };
     while (running) {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
@@ -198,6 +215,7 @@ int main(int argc, char** argv) {
             SDL_Delay(10);
             continue;
         }
+        if (SDL_TICKS_PASSED(SDL_GetTicks(), next_autosave)) { next_autosave = SDL_GetTicks() + 2000; autosave(); }
 
         fonts_begin_frame();
         ImGui_ImplSDLRenderer2_NewFrame();
@@ -292,9 +310,7 @@ int main(int argc, char** argv) {
         SDL_RenderPresent(renderer);
     }
 
-    if (!this_commit.empty()) std::snprintf(theme().last_seen_commit, sizeof theme().last_seen_commit, "%s", this_commit.c_str());
-    theme().save("boomspc_theme.ini");
-    actions_save("boomspc_keys.ini");
+    autosave();
     if (!opt.record.empty()) { app.engine.set_capture(nullptr); write_wav_mono(opt.record, capture, Engine::kSampleRate); }
     app.engine.shutdown();
     ImGui_ImplSDLRenderer2_Shutdown();

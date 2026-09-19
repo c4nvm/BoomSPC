@@ -154,7 +154,12 @@ installs have not been run on real machines yet.
   the other songs in the bank.
 - settings has themes, fonts (theres a letter spacing slider if the pixel
   font is too wide for you), key bindings, follow mode. saved to
-  `boomspc_theme.ini` / `boomspc_keys.ini`.
+  `boomspc_theme.ini` / `boomspc_keys.ini` next to the executable (or the
+  per-user data folder when that is read-only), as you change them.
+  help > open settings folder shows where.
+- if it crashes, `crash.log` in that folder gets the build, what was
+  loaded and a call stack; the next start points you at it. please post it
+  with the .spc / .boomspc when reporting.
 
 ## tools
 

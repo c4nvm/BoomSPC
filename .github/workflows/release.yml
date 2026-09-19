@@ -22,19 +22,27 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++ libsdl2-dev zlib1g-dev
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
           cmake --build build --target boomspc boomspc_assets spc2wav spcdump
       - name: Package
+        # Debug info is split off so crash.log addresses resolve against the
+        # symbols artifact: addr2line -e boomspc.debug -f -C 0x...
         run: |
           pkg=BoomSPC-linux-x64
-          mkdir -p $pkg
+          mkdir -p $pkg symbols
+          objcopy --only-keep-debug build/boomspc symbols/boomspc.debug
+          strip --strip-debug build/boomspc
           cp build/boomspc build/spc2wav build/spcdump README.md LICENSE $pkg/
           cp -r assets $pkg/
           tar -czf $pkg.tar.gz $pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: linux
+          name: release-linux
           path: BoomSPC-linux-x64.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-linux
+          path: symbols/
 
   windows:
     runs-on: windows-latest
@@ -55,13 +63,16 @@ jobs:
           install: git zip mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-zlib
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
           cmake --build build --target boomspc boomspc_assets spc2wav spcdump
       - name: Package
         # The C++ runtime is linked statically; SDL2 and zlib come along as DLLs.
+        # Debug info goes to the symbols artifact (see the linux job).
         run: |
           pkg=BoomSPC-windows-x64
-          mkdir -p $pkg
+          mkdir -p $pkg symbols
+          objcopy --only-keep-debug build/boomspc.exe symbols/boomspc.exe.debug
+          strip --strip-debug build/boomspc.exe
           cp build/boomspc.exe build/spc2wav.exe build/spcdump.exe README.md LICENSE $pkg/
           cp -r assets $pkg/
           for exe in $pkg/*.exe; do
@@ -71,8 +82,12 @@ jobs:
           zip -r $pkg.zip $pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: windows
+          name: release-windows
           path: BoomSPC-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-windows
+          path: symbols/
 
   release:
     needs: [linux, windows]
@@ -83,6 +98,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+          pattern: release-*
           merge-multiple: true
       - name: Publish
         env:

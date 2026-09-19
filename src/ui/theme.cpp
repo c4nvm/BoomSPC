@@ -7,6 +7,7 @@
 
 #include "actions.hpp"
 #include "fonts.hpp"
+#include "paths.hpp"
 
 namespace {
 struct Def { ThemeColor id; const char* name; ImVec4 rgba; };
@@ -321,20 +322,33 @@ bool Theme::load(const char* path) {
     return true;
 }
 
+std::string Theme::text() const {
+    std::string out;
+    char b[2048];
+    for (const Def& d : kDefaults) {
+        const ImVec4& c = colors[d.id];
+        std::snprintf(b, sizeof b, "color.%s=%.3f,%.3f,%.3f,%.3f\n", d.name, c.x, c.y, c.z, c.w);
+        out += b;
+    }
+    std::snprintf(b, sizeof b, "row_hi1=%d\nrow_hi2=%d\nhex_rows=%d\nfollow_mode=%d\nplayhead_pos=%.2f\nlatency_ms=%d\nedit_step=%d\n",
+                  row_hi1, row_hi2, hex_rows, follow_mode, playhead_pos, latency_ms, edit_step);
+    out += b;
+    std::snprintf(b, sizeof b, "ins_colors=%d\nfx_hex_codes=%d\ndim_muted=%d\nshow_meters=%d\ncursor_row_tint=%d\nwrap_cursor=%d\nstep_on_hex=%d\nnote_writes_ins=%d\n",
+                  ins_colors, fx_hex_codes, dim_muted, show_meters, cursor_row_tint, wrap_cursor, step_on_hex, note_writes_ins);
+    out += b;
+    std::snprintf(b, sizeof b, "font_size_ui=%.1f\nfont_size_pattern=%.1f\nfont_tracking=%.2f\nwidget_gap=%.2f\nfont_ui=%s\nfont_mono=%s\nlast_dir=%s\n",
+                  font_size_ui, font_size_pattern, font_tracking, widget_gap, font_ui, font_mono, last_dir);
+    out += b;
+    std::snprintf(b, sizeof b, "check_updates=%d\nupdates_at_startup=%d\nlast_seen_commit=%s\n", check_updates, updates_at_startup, last_seen_commit);
+    out += b;
+    return out;
+}
+
 bool Theme::save(const char* path) const {
     FILE* f = std::fopen(path, "w");
     if (!f) return false;
-    for (const Def& d : kDefaults) {
-        const ImVec4& c = colors[d.id];
-        std::fprintf(f, "color.%s=%.3f,%.3f,%.3f,%.3f\n", d.name, c.x, c.y, c.z, c.w);
-    }
-    std::fprintf(f, "row_hi1=%d\nrow_hi2=%d\nhex_rows=%d\nfollow_mode=%d\nplayhead_pos=%.2f\nlatency_ms=%d\nedit_step=%d\n",
-                 row_hi1, row_hi2, hex_rows, follow_mode, playhead_pos, latency_ms, edit_step);
-    std::fprintf(f, "ins_colors=%d\nfx_hex_codes=%d\ndim_muted=%d\nshow_meters=%d\ncursor_row_tint=%d\nwrap_cursor=%d\nstep_on_hex=%d\nnote_writes_ins=%d\n",
-                 ins_colors, fx_hex_codes, dim_muted, show_meters, cursor_row_tint, wrap_cursor, step_on_hex, note_writes_ins);
-    std::fprintf(f, "font_size_ui=%.1f\nfont_size_pattern=%.1f\nfont_tracking=%.2f\nwidget_gap=%.2f\nfont_ui=%s\nfont_mono=%s\nlast_dir=%s\n",
-                 font_size_ui, font_size_pattern, font_tracking, widget_gap, font_ui, font_mono, last_dir);
-    std::fprintf(f, "check_updates=%d\nupdates_at_startup=%d\nlast_seen_commit=%s\n", check_updates, updates_at_startup, last_seen_commit);
+    const std::string t = text();
+    std::fwrite(t.data(), 1, t.size(), f);
     std::fclose(f);
     return true;
 }
@@ -587,9 +601,10 @@ void draw_settings_window(bool* open) {
     ImGui::SetNextWindowSize(ImVec2(560, 620), ImGuiCond_FirstUseEver);
     if (!panel_begin("Settings", open)) { panel_end(); return; }
     Theme& t = g_theme;
-    if (ImGui::Button("Save")) { t.save("boomspc_theme.ini"); actions_save("boomspc_keys.ini"); }
-    same_line_if_fits("Load"); if (ImGui::Button("Load")) { t.load("boomspc_theme.ini"); actions_load("boomspc_keys.ini"); }
-    same_line_if_fits("boomspc_theme.ini, boomspc_keys.ini (also saved on exit)"); ImGui::TextDisabled("boomspc_theme.ini, boomspc_keys.ini (also saved on exit)");
+    if (ImGui::Button("Save")) { t.save(config_path("boomspc_theme.ini").c_str()); actions_save(config_path("boomspc_keys.ini").c_str()); }
+    same_line_if_fits("Load"); if (ImGui::Button("Load")) { t.load(config_path("boomspc_theme.ini").c_str()); actions_load(config_path("boomspc_keys.ini").c_str()); }
+    same_line_if_fits("Open folder"); if (ImGui::Button("Open folder")) open_config_dir();
+    same_line_if_fits("boomspc_theme.ini, boomspc_keys.ini (saved as you change them)"); ImGui::TextDisabled("boomspc_theme.ini, boomspc_keys.ini (saved as you change them)");
     if (ImGui::BeginTabBar("settings")) {
         if (ImGui::BeginTabItem("Layout"))   { draw_layout_tab(t); ImGui::EndTabItem(); }
         if (ImGui::BeginTabItem("Colours"))  { draw_colors_tab(t); ImGui::EndTabItem(); }

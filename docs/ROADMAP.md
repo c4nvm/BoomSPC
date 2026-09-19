@@ -1,5 +1,42 @@
 # Notes and open work
 
+## Reported by testers (Discord, 2026-09-18)
+
+Crashes now land in crash.log next to the ini files (Help > Open settings
+folder), so ask for that file plus the .spc / .boomspc first.
+
+- **Software Creations games crash on load**: Spider-Man & Venom:
+  Separation Anxiety, Foreman For Real, Uniracers (Zophar has all three).
+  Each game runs its own variant of the Follin engine; the detector matches
+  and the parser then walks something it does not understand. Needs the rips
+  in `~/Downloads/spc` and a `parsecheck` run per game, then a per-build
+  fingerprint like Plok vs Equinox.
+- **Final Fantasy Mystic Quest**: loads only some of the orders and
+  Shift+Enter (play from cursor) crashes. AKAO rev.1-4 paths are untested
+  (`akao.cpp`); the seek probably runs past the parsed part of the song.
+- **Ties cannot be deleted** in the tracker (repro: calb's `indo 2.boomspc`).
+- **Octave keys sometimes do nothing**: most likely another panel or a text
+  field holding keyboard focus; check `io.WantTextInput` and which window
+  the shortcut scope is tied to.
+- **A channel goes silent after adding a few notes** ("sounds like a delay
+  effect kicked in"). Smells like a reclaim / relocation edge: the grown
+  stream moves and a live pointer or call frame for that voice is left
+  behind. Needs the project file and the source rip.
+- **Compute.spc: clicking a note in the piano roll or tracker plays one
+  fixed pitch** instead of the clicked one; the preview ignores the driver's
+  note-to-pitch mapping for that engine.
+- **Tracker view should follow the playhead across orders** while playing
+  (piano roll style follow for the grid).
+- **"Extract everything" mode**: a no-limits mode for making music (all
+  data pulled out of the SPC, no ARAM ceiling, no reclaim) beside a
+  console-accurate mode that keeps the limits for ROM hacks. Big design
+  item; the export back to .spc would be best effort.
+- **Bug report from inside the app**: a Help item that zips crash.log, the
+  ini files and the open project for posting.
+- Docs / tooltip: why one .spc holds several songs (the rip captures the
+  whole 64 KB of audio RAM, and many drivers keep the full song bank
+  resident).
+
 ## Open
 
 - **SNES-side engines (Wario's Woods): room to grow.** The song bank has
@@ -15,10 +52,27 @@
 - **More drivers**: Rare's Battletoads build, Sunsoft; Capcom song-list
   games (X2/X3, SF2). Fresh RE needed (nothing public): Opus (Nosferatu,
   Final Stretch...: a nibble-packed stream, editing would mean
-  re-encoding), Wolfteam (Tales of Phantasia, Star Ocean), Popful Mail,
-  Elfaria, Super Tetris 3 (an N-SPC build whose voice pointers are not in
-  the zero page).
+  re-encoding), Popful Mail, Elfaria, Super Tetris 3 (an N-SPC build whose
+  voice pointers are not in the zero page), Atlus / Tsukasa Masuko (Shin
+  Megami Tensei I and II, Majin Tensei, 13 games), Ocean's own engine
+  (Waterworld, Addams Family Values, Jurassic Park 2, Flintstones, Shadow,
+  plus the four Bobby Earl games).
   `driver/falcom.cpp` is the smallest stream-driver template.
+- Ocean's N-SPC games (Addams Family, Jurassic Park, Lethal Weapon,
+  Push-Over, RoboCop 3, Cool World, Pugsley's Scavenger Hunt) parse their
+  patterns, but `find_track_pointers` never locates the live pointer array,
+  so there is no playhead, no follow and no instrument table. In Push-Over
+  the live words sit at $2F with unused voices parked at $0001, and the
+  three that move do not line up with one pattern's tracks, so the pattern
+  tables are probably not the plain eight words we assume. Needs its own
+  case in `nspc.cpp`.
+- Namco / Junko Ozawa (driver/ozawa.*): Wagyan Paradise, 90 Minutes
+  European Prime Goal and J.League Prime Goal 2 parse (103 of 109 rips
+  pass parsecheck). Yuu Yuu Hakusho Tokubetsu Hen runs the same stream
+  format but lays its song table out differently, with no `MOV Y,#$03 /
+  MUL YA` record lookup, so `detect_layout` does not find it. Editing is
+  off (`in_place_only`): a chord lives in one stream, so growing a track
+  would need the whole chord list rewritten.
 - SLICK notes carry a gate (how long they sound) separate from the delay
   to the next event; the tracker shows the delay as the note's length and
   the gate in the event text. Earthworm Jim rips are packed: most have no
