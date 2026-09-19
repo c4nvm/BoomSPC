@@ -42,6 +42,7 @@ const CmdSpec kCmds[0x10] = {
     {3, "Ext", "Extended (sub, value)", FxClass::Sys1},              // FF
 };
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 const char* kExtNames[0x1F] = {
     "Echo delay", "Echo feedback", "Echo volume", "Echo on", "Echo off", "(no effect)", "(no effect)", "(no effect)",
@@ -129,7 +130,7 @@ NeverlandDriver::NeverlandDriver(Layout layout) : L(layout) {
 }
 
 const CmdSpec& NeverlandDriver::spec(uint8_t op) const {
-    if (op < 0xF0) return kNop;
+    if (op < 0xF0) return kUnknown;
     return cmds_[op - 0xF0];
 }
 

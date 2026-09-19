@@ -58,6 +58,7 @@ const CmdSpec kCmds[0x25] = {
 };
 const CmdSpec kGate = {1, "GtT", "Gate ratio from table", FxClass::Time};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 const CmdSpec kSync = {1, "SyO", "Sync note length on", FxClass::Time};
 const CmdSpec kUnk1 = {2, "???", "Unknown", FxClass::Misc};
 }
@@ -108,8 +109,8 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 }
 
 const CmdSpec& ChunDriver::spec(uint8_t op) const {
-    if (op < 0xA0) return kNop;
-    if (op < 0xDB) return (!L.summer && op <= 0xB5) ? kGate : kNop;
+    if (op < 0xA0) return kUnknown;
+    if (op < 0xDB) return (!L.summer && op <= 0xB5) ? kGate : kUnknown;
     if (L.summer) {
         if (op == 0xDB || op == 0xDC) return kNop;
         if (op == 0xF1) return kSync;

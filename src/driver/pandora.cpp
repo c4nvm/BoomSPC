@@ -46,6 +46,7 @@ const CmdSpec kGate = {1, "Gat", "Gate (n/8)", FxClass::Time};
 const CmdSpec kVolT = {1, "VlT", "Volume from table", FxClass::Volume};
 const CmdSpec kIns = {1, "Ins", "Instrument", FxClass::Instrument};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 }
 
 Layout detect_layout(const uint8_t* ram) {
@@ -75,13 +76,13 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 }
 
 const CmdSpec& PandoraDriver::spec(uint8_t op) const {
-    if (op < 0x40) return kNop;
+    if (op < 0x40) return kUnknown;
     if (op < 0x48) return kOct;
     if (op < 0x50) return kGate;
     if (op < 0x60) return kVolT;
     if (op < 0xE0) return kIns;
     if (op < 0xE0 + 0x17) return kCmds[op - 0xE0];
-    return kNop;
+    return kUnknown;
 }
 
 std::vector<uint16_t> PandoraDriver::song_headers(const uint8_t* ram) const {

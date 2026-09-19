@@ -42,6 +42,7 @@ const CmdSpec kCmds[0x10] = {
 const CmdSpec kByte = {1, "Cmd", "(one byte)", FxClass::Misc};
 const CmdSpec kCtl = {2, "Ctl", "Controller (n & 1F, value)", FxClass::Sys2};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 inline bool is_op(const Event& e, uint8_t op) { return e.type == EventType::Command && e.b[0] == op; }
 }
@@ -101,11 +102,11 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 }
 
 const CmdSpec& SlickDriver::spec(uint8_t op) const {
-    if (op < 0x80) return kNop;
+    if (op < 0x80) return kUnknown;
     if (op < 0xC0) return kByte;
     if (op < 0xE0) return kCtl;
     if (op < 0xF0) return kCmds[op - 0xE0];
-    return kNop;
+    return kUnknown;
 }
 
 int SlickDriver::data_base(const uint8_t* ram, uint16_t header) const {

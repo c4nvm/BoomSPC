@@ -61,6 +61,7 @@ const CmdSpec kCmds[0x28] = {
     {2, "Sub", "Sub-command (loop count / loop again / ADSR parts)", FxClass::Song}, // F9
 };
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 }
 
 Layout detect_layout(const uint8_t* ram) {
@@ -89,7 +90,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 }
 
 const CmdSpec& HeartbeatDriver::spec(uint8_t op) const {
-    if (op < 0xD2 || op > 0xF9) return kNop;
+    if (op < 0xD2 || op > 0xF9) return kUnknown;
     return kCmds[op - 0xD2];
 }
 

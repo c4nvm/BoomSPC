@@ -72,6 +72,7 @@ const CmdSpec kCmds[0x30] = {
 const CmdSpec kUnk1 = {2, "???", "Unknown", FxClass::Misc};
 const CmdSpec kVib3 = {4, "Vib", "Vibrato", FxClass::Pitch};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 // FE xx: bytes after the sub-opcode.
 int sub_args(int version, uint8_t sub) {
@@ -139,7 +140,7 @@ std::string HudsonDriver::name() const {
 }
 
 const CmdSpec& HudsonDriver::spec(uint8_t op) const {
-    if (op < 0xD0) return kNop;
+    if (op < 0xD0) return kUnknown;
     if (L.version == 2) {
         if (op == 0xD7 || op == 0xD8 || op == 0xEE) return kNop;
         if (op == 0xE2) return kVib3;

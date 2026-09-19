@@ -86,6 +86,7 @@ const CmdSpec kPan = {1, "PT1", "Default pan table", FxClass::Panning};
 const CmdSpec kCJp = {3, "CJp", "Jump when the condition is set", FxClass::Song, 1};
 const CmdSpec kUnk2 = {3, "???", "Unknown", FxClass::Misc};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 }
 
 Layout detect_layout(const uint8_t* ram) {
@@ -127,7 +128,7 @@ std::string PrismDriver::name() const {
 }
 
 const CmdSpec& PrismDriver::spec(uint8_t op) const {
-    if (op < 0xC0) return kNop;
+    if (op < 0xC0) return kUnknown;
     if (L.version == 1 && op < 0xD0) return kPan;
     if (L.version == 1 && op == 0xDB) return kUnk2;
     if (L.version == 2 && op < 0xC5) return kCJp;

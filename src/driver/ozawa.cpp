@@ -41,6 +41,7 @@ const CmdSpec kCmds[0x15] = {
 };
 const CmdSpec kBlock = {0, "Blk", "Parameter block", FxClass::Misc};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 int popcount8(uint8_t m) { int n = 0; for (int i = 0; i < 8; ++i) if (m & (1 << i)) ++n; return n; }
 int voice_bit(int v) { return 0x80 >> (v & 7); }   // the driver walks masks MSB first: bit 7 = voice 0
@@ -126,7 +127,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 const CmdSpec& OzawaDriver::spec(uint8_t op) const {
     if (op <= 0x14) return kCmds[op];
     if (op >= 0x18 && op <= 0x97) return kBlock;
-    return kNop;
+    return kUnknown;
 }
 
 // Walks a track's bytes; returns true when `ptr` lands inside one of its

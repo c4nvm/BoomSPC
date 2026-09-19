@@ -76,6 +76,7 @@ const CmdSpec kDur = {1, "Dur", "Note length", FxClass::Time};
 const CmdSpec kDurDirect = {2, "Dur", "Note length (ticks)", FxClass::Time};
 const CmdSpec kTune2 = {3, "Tun", "Tuning", FxClass::Pitch};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 int dur_bytes(const uint8_t* p, int& dur) {
     int n = 0;
@@ -138,7 +139,7 @@ std::string CompileDriver::name() const {
 const CmdSpec& CompileDriver::spec(uint8_t op) const {
     if (op == 0xDE) return kDurDirect;
     if (op >= 0xDF && op <= 0xEE) return kDur;
-    if (op < 0x80 || op >= 0xB0) return kNop;
+    if (op < 0x80 || op >= 0xB0) return kUnknown;
     if (op == 0x97 && L.version >= 3) return kTune2;
     return kCmds[op - 0x80];
 }

@@ -53,6 +53,7 @@ const CmdSpec kCmds[0x20] = {
 const CmdSpec kVol = {1, "Vol", "Volume (0-15)", FxClass::Volume};
 const CmdSpec kOct = {1, "Oct", "Octave", FxClass::Pitch};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 const int kKeySemi[16] = {0, 2, 4, 5, 7, 9, 11, -1, 1, 3, 4, 6, 8, 10, 11, -1};
 const uint8_t kSemiKey[12] = {0, 8, 1, 9, 2, 3, 11, 4, 12, 5, 13, 6};
@@ -95,10 +96,10 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 }
 
 const CmdSpec& GraphResDriver::spec(uint8_t op) const {
-    if (op < 0x80) return kNop;
+    if (op < 0x80) return kUnknown;
     if (op < 0x90) return kVol;
     if (op < 0xA0) return kOct;
-    if (op < 0xE0) return kNop;
+    if (op < 0xE0) return kUnknown;
     return kCmds[op - 0xE0];
 }
 
