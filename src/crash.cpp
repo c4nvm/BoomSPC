@@ -112,11 +112,11 @@ void put_frame(int fd, int i, const void* addr) {
 #ifdef _WIN32
     HMODULE hm = nullptr;
     if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, LPCSTR(addr), &hm) && hm) {
+        // The loader rewrites ImageBase in the mapped header, so print the RVA:
+        // addr2line wants the link-time base plus it (0x140000000 for the mingw exes).
         char name[MAX_PATH] = {};
         GetModuleFileNameA(hm, name, sizeof name);
-        const IMAGE_DOS_HEADER* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(hm);
-        const IMAGE_NT_HEADERS* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(reinterpret_cast<const char*>(hm) + dos->e_lfanew);
-        put(fd, base_name(name)); put(fd, "@"); put_hex(fd, uintptr_t(addr) - uintptr_t(hm) + uintptr_t(nt->OptionalHeader.ImageBase));
+        put(fd, base_name(name)); put(fd, "+"); put_hex(fd, uintptr_t(addr) - uintptr_t(hm));
     } else {
         put_hex(fd, uintptr_t(addr));
     }
