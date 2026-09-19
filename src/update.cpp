@@ -500,21 +500,28 @@ bool put_file(const fs::path& from, const fs::path& to, std::string& err) {
 
 // Copies a payload folder over the executable's folder, keeping the user's
 // ini files.
+// Paths are compared lexically: fs::relative canonicalises, which fails on
+// network shares under MinGW ("cannot make canonical path").
 bool install_tree(const fs::path& root, std::string& err) {
     const fs::path dest = exe_dir();
-    for (const fs::directory_entry& e : fs::recursive_directory_iterator(root)) {
-        if (!e.is_regular_file()) continue;
-        const fs::path rel = fs::relative(e.path(), root);
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)) {
+        const fs::directory_entry& e = *it;
+        if (!e.is_regular_file(ec)) continue;
+        const fs::path rel = e.path().lexically_relative(root);
+        if (rel.empty()) continue;
         if (lower(rel.extension().string()) == ".ini") continue;
         if (!put_file(e.path(), dest / rel, err)) return false;
     }
+    if (ec) { err = "could not read " + root.string() + ": " + ec.message(); return false; }
     return true;
 }
 
 fs::path find_exe(const fs::path& root) {
     const std::string name = lower(fs::path(exe_path()).filename().string());
-    for (const fs::directory_entry& e : fs::recursive_directory_iterator(root))
-        if (e.is_regular_file() && lower(e.path().filename().string()) == name) return e.path();
+    std::error_code ec;
+    for (fs::recursive_directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec))
+        if (it->is_regular_file(ec) && lower(it->path().filename().string()) == name) return it->path();
     return {};
 }
 
@@ -746,6 +753,13 @@ void tools_thread() {
     build_thread();
 }
 
+// A worker that throws (a filesystem_error, say) must not take the app down.
+void guarded(void (*fn)()) {
+    try { fn(); }
+    catch (const std::exception& e) { set(Stage::Failed, std::string("The update stopped: ") + e.what()); }
+    catch (...) { set(Stage::Failed, "The update stopped on an unknown error."); }
+}
+
 void start(void (*fn)()) {
     {
         std::lock_guard<std::mutex> lock(mutex());
@@ -758,7 +772,7 @@ void start(void (*fn)()) {
 #else
     setenv("GIT_TERMINAL_PROMPT", "0", 1);
 #endif
-    std::thread(fn).detach();
+    std::thread(guarded, fn).detach();
 }
 
 }
