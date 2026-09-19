@@ -238,6 +238,23 @@ void draw_sequencer_panel(App& app) {
     if (ImGui::IsItemHovered())
         tooltip_spaced("Game rips carry the whole music bank and ARAM is usually full.\n"
                           "When a track has to grow, allow overwriting the other songs' data.");
+    {
+        // Free RAM, refreshed once a second: what a grown track could move into.
+        static Tracker::FreeStats fs;
+        static double next = 0;
+        static const void* last_drv = nullptr;
+        if (ImGui::GetTime() >= next || last_drv != T.drv.get()) { fs = T.free_stats(app.snap); next = ImGui::GetTime() + 1.0; last_drv = T.drv.get(); }
+        char b[64];
+        std::snprintf(b, sizeof b, "free %d B", T.reclaim_other_songs ? fs.total_reclaim : fs.total);
+        same_line_if_fits(text_w(b));
+        const int largest = T.reclaim_other_songs ? fs.largest_reclaim : fs.largest;
+        if (largest < 64) ImGui::TextColored(th.colors[TC_NOTE_OFF], "%s", b); else ImGui::TextDisabled("%s", b);
+        if (ImGui::IsItemHovered())
+            tooltip_spaced("ARAM a grown track can move into: %d bytes free, largest run %d.\n"
+                              "With Reclaim: %d bytes, largest run %d (the other songs' data included).\n"
+                              "A track that outgrows its place needs one run at least its size.",
+                              fs.total, fs.largest, fs.total_reclaim, fs.largest_reclaim);
+    }
     if (double tps = D.ticks_per_second(app.snap.ram); tps > 0) {
         same_line_if_fits(text_w("999.9 BPM"));
         ImGui::TextDisabled("%.1f BPM", app.song_bpm());

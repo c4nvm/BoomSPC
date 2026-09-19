@@ -77,6 +77,10 @@ struct Tracker {
     std::vector<std::pair<uint16_t, uint16_t>> pending_release;
     void flush_releases(const EngineSnapshot& s, Engine& eng);
     int find_free_space(const EngineSnapshot& s, int need, int* run_len = nullptr) const;
+    // Free RAM as an edit would see it: total bytes and the largest run, with
+    // and without the other songs' bytes. Costs a scan of RAM; call sparingly.
+    struct FreeStats { int total = 0, largest = 0, total_reclaim = 0, largest_reclaim = 0; };
+    FreeStats free_stats(const EngineSnapshot& s) const;
     std::vector<bool> free_map(const EngineSnapshot& s, uint8_t fill) const;
     bool bytes_free(const EngineSnapshot& s, int from, int len) const;
 };

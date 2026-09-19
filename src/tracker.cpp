@@ -218,6 +218,26 @@ void Tracker::flush_releases(const EngineSnapshot& s, Engine& eng) {
     }
 }
 
+Tracker::FreeStats Tracker::free_stats(const EngineSnapshot& s) const {
+    FreeStats st;
+    const bool keep = reclaim_other_songs;
+    for (int pass = 0; pass < 2; ++pass) {
+        reclaim_other_songs = pass == 1;
+        int total = 0, largest = 0;
+        for (uint8_t fill : {uint8_t(0x00), uint8_t(0xFF)}) {
+            const std::vector<bool> free = free_map(s, fill);
+            int t = 0, run = 0, best = 0;
+            for (int a = 0; a < 0x10000; ++a) {
+                if (free[size_t(a)]) { ++t; ++run; best = std::max(best, run); } else run = 0;
+            }
+            total = std::max(total, t); largest = std::max(largest, best);
+        }
+        if (pass) { st.total_reclaim = total; st.largest_reclaim = largest; } else { st.total = total; st.largest = largest; }
+    }
+    reclaim_other_songs = keep;
+    return st;
+}
+
 bool Tracker::bytes_free(const EngineSnapshot& s, int from, int len) const {
     if (from + len > 0x10000) return false;
     for (uint8_t fill : {uint8_t(0x00), uint8_t(0xFF)}) {
