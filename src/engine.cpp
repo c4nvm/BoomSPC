@@ -213,7 +213,14 @@ void Engine::apply_settings_locked() {
 }
 
 void Engine::play()   { if (loaded_) playing_ = true; }
-void Engine::pause()  { if (seeking_) cancel_seek(); playing_ = false; }
+void Engine::pause() {
+    if (seeking_) cancel_seek();
+    std::lock_guard<std::mutex> lock(mtx_);
+    playing_ = false;
+    // A preview's release tail would keep clocking the DSP, and with it every
+    // voice of the song, for two seconds after the pause.
+    if (preview_voice_ < 0) preview_tail_ = 0;
+}
 void Engine::toggle() { (playing_ || seeking_) ? pause() : play(); }
 
 void Engine::restart() {
