@@ -19,6 +19,10 @@
 //   B2 f      humanize on/off (random +/-1 ticks)
 // Ticks come from timer 0: 8000 / latch per second.
 //
+// DSP voices are handed out per note (zero page $01 + v*16 names the track
+// a voice is playing), so a song can run more than eight tracks; the eight
+// columns show the first eight entries that are in use (`col_`).
+//
 // BoomSPC parses a track as its first pattern chained through pattern-end
 // events that jump to the next order entry (target and entry kept in the
 // event bytes). Editing rewrites only the pattern visits that changed.
@@ -73,7 +77,7 @@ public:
     bool set_duration(std::vector<seq::Event>& ev, int i, int dur) const override;
     void apply_note_byte(seq::Event& e, uint8_t byte) const override;
     std::vector<uint8_t> serialize_relocated(const std::vector<seq::Event>& ev, uint16_t dest, std::vector<int>* offsets) const override;
-    uint16_t live_ptr(const uint8_t* ram, const seq::Position& pos, int v) const override { (void)pos; return stream::rd16(ram, L.tracks + 32 * v + 3); }
+    uint16_t live_ptr(const uint8_t* ram, const seq::Position& pos, int v) const override { (void)pos; return stream::rd16(ram, live_ptr_addr(v)); }
     void live_state_writes(const uint8_t* ram, const seq::Position& pos, int voice, uint16_t ptr, const Remap& remap, std::vector<std::pair<uint16_t, uint8_t>>& out) const override;
     void track_pointer_writes(const seq::Song& song, int pattern_idx, int voice, uint16_t dest, std::vector<std::pair<uint16_t, uint8_t>>& out) const override;
     bool set_note_at(std::vector<seq::Event>& ev, int tick, uint8_t note_byte, int pattern_len) const override;
@@ -90,13 +94,17 @@ public:
     const stream::CmdSpec& spec(uint8_t op) const override;
     uint16_t track_start(const uint8_t* ram, uint16_t header, int v) const override;
     std::vector<uint16_t> song_headers(const uint8_t* ram) const override;
-    uint16_t live_ptr_addr(int v) const override { return uint16_t(L.tracks + 32 * v + 3); }
+    uint16_t live_ptr_addr(int v) const override { return uint16_t(L.tracks + 32 * track_of(v) + 3); }
     int  ptr_span() const override { return 2; }
     stream::State initial_state(const uint8_t* ram, uint16_t header, int voice) const override;
     stream::State edit_state(const std::vector<seq::Event>& ev) const override;
     bool ptr_after_note() const override { return false; }
     void prune_idle_voices(const uint8_t* ram, seq::Pattern& p) const override;
     std::string song_label(const uint8_t* ram, uint16_t header, const seq::Pattern& p, int index) const override;
+
+private:
+    mutable int8_t col_[8] = {0, 1, 2, 3, 4, 5, 6, 7};   // track entry shown in each column
+    int track_of(int v) const { return v >= 0 && v < 8 ? col_[v] : v; }
 
 private:
     static bool timed(const seq::Event& e) { return e.duration > 0 && (e.type == seq::EventType::Note || e.type == seq::EventType::Rest || e.type == seq::EventType::Tie); }

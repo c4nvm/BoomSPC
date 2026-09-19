@@ -93,7 +93,7 @@ const CmdSpec& WolfteamDriver::spec(uint8_t op) const {
 }
 
 uint16_t WolfteamDriver::order_start(const uint8_t* ram, uint16_t header, int v) const {
-    const int e = header + 0x23 + v * 3;
+    const int e = header + 0x23 + track_of(v) * 3;
     if (!(ram[e] & 0x80)) return 0;
     return uint16_t((header + rd16(ram, e + 1)) & 0xFFFF);
 }
@@ -105,6 +105,14 @@ std::vector<uint16_t> WolfteamDriver::song_headers(const uint8_t* ram) const {
     int lo = h;
     while (lo > 0x200 && (ram[lo - 1] == 0 || ram[lo - 1] == 0xFF)) --lo;
     free_lo_ = uint16_t(lo);
+    int n = 0;
+    for (int t = 0; t < 14 && n < 8; ++t) {
+        const int e = h + 0x23 + t * 3;
+        if (!(ram[e] & 0x80) || rd16(ram, (h + rd16(ram, e + 1)) & 0xFFFF) == 0xFFFF) continue;
+        col_[n++] = int8_t(t);
+    }
+    for (int v = n; v < 8; ++v) col_[v] = int8_t(v < 14 ? v : 0);
+    if (!n) return {};
     for (int v = 0; v < 8; ++v) if (track_start(ram, uint16_t(h), v)) return {uint16_t(h)};
     return {};
 }
@@ -241,11 +249,12 @@ void WolfteamDriver::live_state_writes(const uint8_t* ram, const seq::Position& 
     const uint16_t live = live_ptr(ram, pos, voice);
     if (int m = map(live); m >= 0) ptr = uint16_t(m);
     else if (!rewritten(live)) ptr = live;
-    word(uint16_t(L.tracks + 32 * voice + 3), ptr);
+    const int t = track_of(voice);
+    word(uint16_t(L.tracks + 32 * t + 3), ptr);
     if (!L.saves) return;
     for (int k = 0; k < 2; ++k) {   // open repeats point at their 92
-        const uint16_t at = uint16_t(L.saves + 4 * voice + 2 * k);
-        if (ram[(L.tracks + 32 * voice + 10 + k) & 0xFFFF] == 0xFF) continue;
+        const uint16_t at = uint16_t(L.saves + 4 * t + 2 * k);
+        if (ram[(L.tracks + 32 * t + 10 + k) & 0xFFFF] == 0xFF) continue;
         if (int m = map(uint16_t(rd16(ram, at))); m >= 0) word(at, uint16_t(m));
     }
 }
