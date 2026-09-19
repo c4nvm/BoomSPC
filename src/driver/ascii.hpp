@@ -12,7 +12,9 @@
 //   9B [len]    rest
 //   81 ... 82   song loop   83 ... 84 n   repeat n times (0 = 256)
 //   86 addr     call (four levels)   87  return   80  end
-//   89 i  instrument   8A t  tempo   8B t  transpose
+//   89 i  instrument   8A t  tempo   8B t  transpose   8D d  detune
+//   8E n  gate (length * n / 256)   95 l r  echo volume   8C n  stored per
+//   note and never read (Ardy build)
 // Timer 0 counts tempo events per tick: ticks per second = (8000 / latch) / tempo.
 #pragma once
 

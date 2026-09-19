@@ -30,16 +30,16 @@ const CmdSpec kCmds1[0x20] = {
     {2, "Ins", "Instrument", FxClass::Instrument},                       // 89
     {2, "Tmp", "Tempo", FxClass::Speed},                                 // 8A
     {2, "Trn", "Transpose", FxClass::Pitch},                             // 8B
-    {2, "???", "Unknown (cleared when the note ends)", FxClass::Misc},   // 8C
-    {2, "???", "Unknown", FxClass::Misc},                                // 8D
-    {2, "???", "Unknown", FxClass::Misc},                                // 8E
+    {2, "NtP", "Note parameter (stored per note, never read by this build)", FxClass::Misc},   // 8C
+    {2, "Dtn", "Detune (signed, added to the pitch)", FxClass::Pitch},   // 8D
+    {2, "Gat", "Gate: a note sounds length * n / 256 ticks (0 = full)", FxClass::Time},   // 8E
     {2, "MVl", "Master volume", FxClass::Volume},                        // 8F
     {3, "VlP", "Volume and pan", FxClass::Volume},                       // 90
     {2, "Vol", "Volume", FxClass::Volume},                               // 91
     {2, "Pan", "Panning", FxClass::Panning},                             // 92
     {3, "VlF", "Volume fade", FxClass::Volume},                          // 93
     {4, "PnF", "Pan fade", FxClass::Panning},                            // 94
-    {3, "???", "Unknown", FxClass::Misc},                                // 95
+    {3, "EVl", "Echo volume L, R", FxClass::Sys1},                       // 95
     {3, "Ech", "Echo parameters", FxClass::Sys1},                        // 96
     {2, "EcV", "Echo voices", FxClass::Sys1},                            // 97
     {5, "Vib", "Vibrato (delay, rate, depth, step)", FxClass::Pitch},    // 98
