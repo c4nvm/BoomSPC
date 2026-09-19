@@ -10,6 +10,7 @@
 struct ProjectMeta {
     std::string source;        // the .spc the project started from
     int  song = -1;            // song index in the driver's list
+    int  song_addr = -1;       // its header address, which survives a changed list
     int  ticks_per_row = 0;
     int  ticks_per_beat = 0;
     int  octave = 4;

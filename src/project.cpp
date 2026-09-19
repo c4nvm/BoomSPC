@@ -20,7 +20,7 @@ std::string save_project(const std::string& path, const ProjectMeta& m, const st
     if (!out) return "could not open " + path;
     out << kMagic;
     out << "source=" << m.source << "\n";
-    out << "song=" << m.song << "\nticks_per_row=" << m.ticks_per_row << "\nticks_per_beat=" << m.ticks_per_beat << "\noctave=" << m.octave
+    out << "song=" << m.song << "\nsong_addr=" << m.song_addr << "\nticks_per_row=" << m.ticks_per_row << "\nticks_per_beat=" << m.ticks_per_beat << "\noctave=" << m.octave
         << "\nedit_step=" << m.edit_step << "\nview_order=" << m.view_order << "\nreclaim=" << (m.reclaim ? 1 : 0) << "\n";
     out << kEnd;
     out.write(reinterpret_cast<const char*>(spc.data()), std::streamsize(spc.size()));
@@ -48,6 +48,7 @@ std::string load_project(const std::string& path, ProjectMeta& m, std::vector<ui
         std::string k = line.substr(0, eq), v = line.substr(eq + 1);
         if (k == "source") m.source = v;
         else if (k == "song") m.song = std::atoi(v.c_str());
+        else if (k == "song_addr") m.song_addr = std::atoi(v.c_str());
         else if (k == "ticks_per_row") m.ticks_per_row = std::atoi(v.c_str());
         else if (k == "ticks_per_beat") m.ticks_per_beat = std::atoi(v.c_str());
         else if (k == "octave") m.octave = std::atoi(v.c_str());

@@ -120,7 +120,11 @@ bool App::open_project(const std::string& path) {
     project_path = path;
     std::strncpy(path_buf, path.c_str(), sizeof path_buf - 1);
     path_buf[sizeof path_buf - 1] = 0;
-    if (meta.song >= 0 && meta.song < int(tracker.songs.size())) { tracker.song_index = meta.song; tracker.song_pinned = true; }
+    int song = -1;
+    if (meta.song_addr >= 0)
+        for (size_t i = 0; i < tracker.songs.size(); ++i) if (int(tracker.songs[i].order_addr) == meta.song_addr) song = int(i);
+    if (song < 0 && meta.song_addr < 0 && meta.song >= 0 && meta.song < int(tracker.songs.size())) song = meta.song;
+    if (song >= 0) { tracker.song_index = song; tracker.song_pinned = true; }
     if (meta.ticks_per_row > 0) ticks_per_row = std::clamp(meta.ticks_per_row, 1, 96);
     if (meta.ticks_per_beat > 0) ticks_per_beat = std::clamp(meta.ticks_per_beat, 1, 192);
     octave = std::clamp(meta.octave, 1, 6);
@@ -137,6 +141,7 @@ bool App::save_project_to(const std::string& path) {
     ProjectMeta meta;
     meta.source = source_path;
     meta.song = tracker.song_index;
+    meta.song_addr = tracker.song() ? int(tracker.song()->order_addr) : -1;
     meta.ticks_per_row = ticks_per_row;
     meta.ticks_per_beat = ticks_per_beat;
     meta.octave = octave;
