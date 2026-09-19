@@ -23,8 +23,8 @@ const CmdSpec kCmds[0x15] = {
     {1, "Ret", "Return, or end of track", FxClass::Song, 0, true},        // 03
     {2, "LnM", "Length multiplier", FxClass::Time},                       // 04
     {2, "Prm", "Track parameter", FxClass::Misc},                         // 05
-    {4, "Lp1", "Jump back unless counter 1 reached n", FxClass::Song, 2, true},  // 06
-    {4, "Br1", "Jump when counter 1 reaches n", FxClass::Song, 2, true},         // 07
+    {4, "Lp1", "Repeat slot 1 until the count", FxClass::Song, 2, true},  // 06
+    {4, "Lp1", "Repeat slot 1 on the count", FxClass::Song, 2, true},     // 07
     {3, "Jmp", "Jump", FxClass::Song, 1, true},                           // 08
     {0, "Not", "Note", FxClass::Misc},                                    // 09
     {2, "EDl", "Echo delay", FxClass::Sys1},                              // 0A
@@ -32,8 +32,8 @@ const CmdSpec kCmds[0x15] = {
     {2, "Prm", "Track parameter", FxClass::Misc},                         // 0C
     {2, "Ech", "Echo on/off", FxClass::Sys1},                             // 0D
     {1, "Rst", "Rest", FxClass::Misc},                                    // 0E
-    {4, "Lp2", "Jump back unless counter 2 reached n", FxClass::Song, 2, true},  // 0F
-    {4, "Br2", "Jump when counter 2 reaches n", FxClass::Song, 2, true},         // 10
+    {4, "Lp2", "Repeat slot 2 until the count", FxClass::Song, 2, true},  // 0F
+    {4, "Lp2", "Repeat slot 2 on the count", FxClass::Song, 2, true},     // 10
     {2, "EFb", "Echo feedback", FxClass::Sys1},                           // 11
     {2, "FIR", "Echo filter set", FxClass::Sys1},                         // 12
     {2, "EVl", "Echo volume", FxClass::Sys1},                             // 13
@@ -41,7 +41,6 @@ const CmdSpec kCmds[0x15] = {
 };
 const CmdSpec kBlock = {0, "Blk", "Parameter block", FxClass::Misc};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
-const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 int popcount8(uint8_t m) { int n = 0; for (int i = 0; i < 8; ++i) if (m & (1 << i)) ++n; return n; }
 int voice_bit(int v) { return 0x80 >> (v & 7); }   // the driver walks masks MSB first: bit 7 = voice 0
@@ -76,15 +75,7 @@ Layout detect_layout(const uint8_t* ram) {
         const int a = find_pattern(ram, p, 0x2000, tbl, 12);
         if (a < 0) break;
         const uint16_t base = uint16_t(ram[a + 5] | (ram[a + 9] << 8));
-        if (base >= 0x1000 && base < 0xFF00 && ram[a + 7] + 1 == ram[a + 11]) {
-            L.song_table = base;
-            // BRA / MOV X,#lo / MOV $3C,X / MOV X,#hi / MOV $3D,X: the table for numbers past the compare
-            if (ram[a + 12] == 0x2F && ram[a + 14] == 0xCD && ram[a + 16] == 0xD8 && ram[a + 18] == 0xCD && ram[a + 20] == 0xD8) {
-                const uint16_t b2 = uint16_t(ram[a + 15] | (ram[a + 19] << 8));
-                if (b2 >= 0x1000 && b2 < 0xFF00 && b2 != base) L.song_table2 = b2;
-            }
-            break;
-        }
+        if (base >= 0x1000 && base < 0xFF00 && ram[a + 7] + 1 == ram[a + 11]) { L.song_table = base; break; }
         p = a;
     }
     if (!L.song_table) return Layout{};
@@ -101,20 +92,14 @@ Layout detect_layout(const uint8_t* ram) {
     if (int a = find_pattern(ram, 0x200, 0x2000, state, 12); a >= 0) L.state_zp = ram[a + 11];
 
     // Records run until one stops looking like {track 0-3, address in ARAM}.
-    auto count = [&](uint16_t table, int max) {
-        int n = 0;
-        for (int i = 0; i < max; ++i) {
-            const int r = (table + i * 3) & 0xFFFF;
-            const uint8_t trk = ram[r];
-            const uint16_t addr = uint16_t(ram[r + 1] | (ram[r + 2] << 8));
-            if (trk > 3) break;
-            if (addr && (addr < 0x1000 || addr >= 0xFF00)) break;
-            n = i + 1;
-        }
-        return n;
-    };
-    L.entries = count(L.song_table, 128);
-    if (L.song_table2) L.entries2 = count(L.song_table2, 32);
+    for (int i = 0; i < 128; ++i) {
+        const int r = (L.song_table + i * 3) & 0xFFFF;
+        const uint8_t trk = ram[r];
+        const uint16_t addr = uint16_t(ram[r + 1] | (ram[r + 2] << 8));
+        if (trk > 3) break;
+        if (addr && (addr < 0x1000 || addr >= 0xFF00)) break;
+        L.entries = i + 1;
+    }
     return L;
 }
 
@@ -127,31 +112,22 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 const CmdSpec& OzawaDriver::spec(uint8_t op) const {
     if (op <= 0x14) return kCmds[op];
     if (op >= 0x18 && op <= 0x97) return kBlock;
-    return kUnknown;
+    return kNop;
 }
 
-// Walks a track's bytes; returns true when `ptr` lands inside one of its
-// events (a rip can catch the pointer between an opcode and its operands).
+// Walks a track's bytes; returns true when `ptr` lands on an event boundary.
 namespace {
 bool covers(const uint8_t* ram, uint16_t start, uint16_t ptr, int limit = 8000) {
     uint16_t p = start;
     uint16_t stack[8];
-    int sp = 0, counter[2] = {0, 0};
+    int sp = 0;
     for (int n = 0; n < limit; ++n) {
+        if (p == ptr) return true;
         const uint8_t b = ram[p];
         if (b > 0x97 || (b > 0x14 && b < 0x18)) return false;
         const int sz = event_size(ram + p);
-        if (ptr >= p && ptr < p + sz) return true;
         if (b == 0x03) { if (!sp) return false; p = stack[--sp]; continue; }
         if (b == 0x08) { p = uint16_t(ram[(p + 1) & 0xFFFF] | (ram[(p + 2) & 0xFFFF] << 8)); continue; }
-        if (b == 0x06 || b == 0x0F || b == 0x07 || b == 0x10) {
-            int& c = counter[b == 0x06 || b == 0x07 ? 0 : 1];
-            c = (c + 1) & 0xFF;
-            const bool back = b == 0x06 || b == 0x0F;
-            const bool reached = c == ram[(p + 1) & 0xFFFF];
-            if (reached) c = 0;
-            if (back != reached) { p = uint16_t(ram[(p + 2) & 0xFFFF] | (ram[(p + 3) & 0xFFFF] << 8)); continue; }
-        }
         if (b == 0x02) {
             if (sp >= 8) return false;
             stack[sp++] = uint16_t(p + sz);
@@ -210,12 +186,10 @@ std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
     groups_.clear();
     owners_.clear();
     headers_.clear();
-    std::vector<std::pair<uint8_t, uint16_t>> rec;   // {track, start}
-    std::vector<uint16_t> rec_at;                    // the record's address (the pseudo-header)
-    for (int i = 0; i < L.entries + L.entries2; ++i) {
-        const int r = (i < L.entries ? L.song_table + i * 3 : L.song_table2 + (i - L.entries) * 3) & 0xFFFF;
+    std::vector<std::pair<uint8_t, uint16_t>> rec;
+    for (int i = 0; i < L.entries; ++i) {
+        const int r = (L.song_table + i * 3) & 0xFFFF;
         rec.push_back({ram[r], uint16_t(ram[r + 1] | (ram[r + 2] << 8))});
-        rec_at.push_back(uint16_t(r));
     }
     // The playing set first: each live pointer belongs to the table entry whose
     // program reaches it.
@@ -227,11 +201,6 @@ std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
         if (ptr < 0x1000 || ptr >= 0xFF00) continue;
         for (const auto& [trk, addr] : rec)
             if (trk == v && addr && covers(ram, addr, ptr)) { live[size_t(v)] = addr; any_live = true; break; }
-        if (live[size_t(v)]) continue;
-        // Started by address, not through a table: the lowest program that
-        // opens with a mask on a stream boundary and reaches the pointer.
-        for (int a = 0x1000; a < 0xFFF0 && !live[size_t(v)]; ++a)
-            if (ram[a] == 0x01 && (ram[a - 1] == 0x03 || ram[a - 1] == 0xFF || ram[a - 1] == 0x00) && covers(ram, uint16_t(a), ptr, 20000)) { live[size_t(v)] = uint16_t(a); any_live = true; }
     }
     if (any_live) {
         groups_.push_back(live);
@@ -239,25 +208,17 @@ std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
         headers_.push_back(uint16_t(L.song_table));
     }
     // Then every table entry on its own, so the rest of the bank can be read.
-    for (size_t i = 0; i < rec.size(); ++i) {
-        const auto& [trk, addr] = rec[i];
+    for (int i = 0; i < L.entries; ++i) {
+        const auto& [trk, addr] = rec[size_t(i)];
         if (!addr) continue;
         if (any_live && addr == live[trk]) continue;
         std::array<uint16_t, 4> g{};
         g[trk] = addr;
         groups_.push_back(g);
         owners_.push_back(owners_of(ram, L, g));
-        headers_.push_back(rec_at[i]);
+        headers_.push_back(uint16_t((L.song_table + i * 3) & 0xFFFF));
     }
     return headers_;
-}
-
-// The group built from the running tracks is the song; stopped tracks park
-// on event boundaries of whatever they last played and would outvote it.
-int OzawaDriver::pick_current_song(const uint8_t* ram, const std::vector<seq::Song>& songs) const {
-    for (size_t i = 0; i < songs.size(); ++i)
-        if (songs[i].order_addr == L.song_table && !headers_.empty() && headers_[0] == L.song_table) { select_song(songs[i].order_addr); return int(i); }
-    return stream::Driver::pick_current_song(ram, songs);
 }
 
 void OzawaDriver::select_song(uint16_t header) const {
@@ -299,8 +260,7 @@ static int value_index(const uint8_t* p, int v) {
     return 2 + popcount8(uint8_t(p[1] & ~(voice_bit(v) * 2 - 1)));
 }
 
-// State: len = note length, x[0] = length multiplier, x[1] = voice mask,
-// x[2] / x[3] = the two repeat counters.
+// State: len = note length, x[0] = length multiplier, x[1] = voice mask.
 void OzawaDriver::decode(const uint8_t* p, int pc, State& s, Event& e, Flow& f) const {
     const uint8_t b = p[0];
     e.b[0] = b;
@@ -335,25 +295,8 @@ void OzawaDriver::decode(const uint8_t* p, int pc, State& s, Event& e, Flow& f) 
         case 0x02: f.kind = Flow::Call; f.count = 1; f.target = p[1] | (p[2] << 8); break;
         case 0x03: f.kind = Flow::Return; break;
         case 0x08: f.kind = Flow::Jump; f.target = p[1] | (p[2] << 8); break;
-        // Both commands step a per-slot counter (06/07 slot 1, 0F/10 slot 2)
-        // and compare it with n: 06/0F jump unless it got there, 07/10 jump
-        // when it does; reaching n clears it. n = 0 means 256 passes, which
-        // for 06/0F is the song loop.
-        case 0x06: case 0x0F: {
-            int& c = s.x[b == 0x06 ? 2 : 3];
-            c = (c + 1) & 0xFF;
-            f.target = p[2] | (p[3] << 8);
-            if (p[1] == 0) { f.kind = Flow::Jump; f.count = 0; }
-            else if (c != p[1]) { f.kind = Flow::Jump; f.count = 1; }
-            else c = 0;
-            break;
-        }
-        case 0x07: case 0x10: {
-            int& c = s.x[b == 0x07 ? 2 : 3];
-            c = (c + 1) & 0xFF;
-            if (c == p[1]) { c = 0; f.kind = Flow::Jump; f.count = 1; f.target = p[2] | (p[3] << 8); }
-            break;
-        }
+        case 0x06: case 0x0F: f.kind = Flow::RepStart; f.count = p[1] ? p[1] : 256; f.slot = b == 0x06 ? 0 : 1; break;
+        case 0x07: case 0x10: f.kind = Flow::RepEnd; f.count = p[1] ? p[1] : 256; f.slot = b == 0x07 ? 0 : 1; break;
         default: break;
     }
     (void)pc;
