@@ -207,9 +207,10 @@ void draw_sequencer_panel(App& app) {
         if (playing) ImGui::PopStyleColor();
         if (ImGui::IsItemHovered()) tooltip_spaced("%s", action_shortcut(A_PLAY_TOGGLE));
         ImGui::SameLine();
-        if (app.edit_mode) ImGui::PushStyleColor(ImGuiCol_Button, scale(th.colors[TC_STATUS_EDIT], 0.6f));
+        const bool editing = app.edit_mode;   // the button flips it; the pop must match the push
+        if (editing) ImGui::PushStyleColor(ImGuiCol_Button, scale(th.colors[TC_STATUS_EDIT], 0.6f));
         if (ImGui::Button("Edit")) app.edit_mode = !app.edit_mode;
-        if (app.edit_mode) ImGui::PopStyleColor();
+        if (editing) ImGui::PopStyleColor();
         if (ImGui::IsItemHovered()) tooltip_spaced("Edit mode (%s): keys write into the pattern.", action_shortcut(A_EDIT_TOGGLE));
     }
     same_line_if_fits(text_w("Follow") + em(1.5f)); ImGui::Checkbox("Follow", &app.follow);
