@@ -22,9 +22,6 @@ folder), so ask for that file plus the .spc / .boomspc first.
   effect kicked in"). Smells like a reclaim / relocation edge: the grown
   stream moves and a live pointer or call frame for that voice is left
   behind. Needs the project file and the source rip.
-- **Compute.spc: clicking a note in the piano roll or tracker plays one
-  fixed pitch** instead of the clicked one; the preview ignores the driver's
-  note-to-pitch mapping for that engine.
 - **Tracker view should follow the playhead across orders** while playing
   (piano roll style follow for the grid).
 - **"Extract everything" mode**: a no-limits mode for making music (all

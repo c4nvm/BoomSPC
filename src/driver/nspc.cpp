@@ -350,6 +350,14 @@ Layout detect(const uint8_t* ram) {
             else if (!L.perc_table && addr != L.inst_table) L.perc_table = addr;
         }
     }
+    // EarthBound style: MOV Y,#6 / MUL YA / MOVW $14,YA / CLRC / ADC $14,#lo / ADC $15,#hi
+    if (!L.inst_table) {
+        const int eb[] = {0x8D, 0x06, 0xCF, 0xDA, W, 0x60, 0x98, W, W, 0x98, W, W};
+        if (int a = find_pat(ram, code_lo, code_hi, eb, 12); a >= 0 && ram[a + 8] == ram[a + 4] && ram[a + 11] == uint8_t(ram[a + 4] + 1)) {
+            const uint16_t addr = uint16_t(ram[a + 7] | (ram[a + 10] << 8));
+            if (addr >= 0x200) { L.inst_table = addr; L.inst_stride = 6; }
+        }
+    }
     if (!L.inst_table) {
         auto looks_like_table = [&](int addr, int stride) {
             for (int i = 0; i < 2; ++i) {
