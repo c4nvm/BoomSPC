@@ -710,7 +710,48 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         songs.push_back(std::move(s));
         for (int k = a; k < end; ++k) consumed[k] = true;
     }
-    return songs;
+    // A word inside a pattern header or a track can pass as a one-entry
+    // order list (Inindo's Villages listed each of its twelve patterns as a
+    // song of its own). An order list that starts inside another song's
+    // pattern headers or track bytes is that song's data, not a song.
+    std::vector<uint8_t> owner(0x10000, 0);   // bit 1 = pattern header, bit 2 = track byte, of some song
+    for (const Song& s : songs)
+        for (const Pattern& p : s.patterns) {
+            for (int k = 0; k < 16; ++k) owner[(p.addr + k) & 0xFFFF] |= 1;
+            for (const Track& t : p.tracks) {
+                if (!t.addr) continue;
+                const size_t n = t.used_events > 0 ? std::min<size_t>(size_t(t.used_events), t.events.size()) : t.events.size();
+                for (size_t i = 0; i < n; ++i) for (int k = 0; k < t.events[i].size; ++k) owner[(t.events[i].addr + k) & 0xFFFF] |= 2;
+            }
+        }
+    // Between two candidates that claim the same bytes the one with more
+    // orders wins, then more ticks, then the lower address, so two one-entry
+    // lists can never drop each other.
+    auto better = [](const Song& o, const Song& s) {
+        if (o.orders.size() != s.orders.size()) return o.orders.size() > s.orders.size();
+        if (o.total_ticks() != s.total_ticks()) return o.total_ticks() > s.total_ticks();
+        return o.order_addr < s.order_addr;
+    };
+    std::vector<bool> drop(songs.size(), false);   // decided before anything is moved out
+    for (size_t si = 0; si < songs.size(); ++si) {
+        const Song& s = songs[si];
+        bool inside = false;
+        for (const Song& o : songs) {
+            if (&o == &s || !better(o, s)) continue;
+            for (const Pattern& p : o.patterns) if (s.order_addr >= p.addr && s.order_addr < p.addr + 16) inside = true;
+            if (inside || !(owner[s.order_addr] & 2)) continue;
+            for (const Pattern& p : o.patterns) for (const Track& t : p.tracks) {
+                if (!t.addr) continue;
+                const size_t n = t.used_events > 0 ? std::min<size_t>(size_t(t.used_events), t.events.size()) : t.events.size();
+                for (size_t i = 0; i < n && !inside; ++i) if (s.order_addr >= t.events[i].addr && s.order_addr < t.events[i].addr + t.events[i].size) inside = true;
+            }
+        }
+        drop[si] = inside;
+        if (inside && std::getenv("BOOMSPC_DEBUG_PARSE")) std::fprintf(stderr, "song @%04X dropped: its order list lies in another song's data\n", s.order_addr);
+    }
+    std::vector<Song> kept;
+    for (size_t si = 0; si < songs.size(); ++si) if (!drop[si]) kept.push_back(std::move(songs[si]));
+    return kept;
 }
 
 namespace {
