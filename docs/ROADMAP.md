@@ -34,6 +34,51 @@ folder), so ask for that file plus the .spc / .boomspc first.
   whole 64 KB of audio RAM, and many drivers keep the full song bank
   resident).
 
+## Voice sweep (2026-09-19)
+
+A scratchpad harness (`voicecheck`) played every rip in `~/Downloads/spc`
+for 8 s and flagged DSP voices that key on while the tracker column for
+them has no notes. What is left after the fixes, and why:
+
+- **More than eight tracks / voices handed out per note.** Wolf Team
+  songs use up to 14 track entries (55 of 143 rips use more than 8) and
+  Mint, Wolf Team and Berlioz assign DSP voices at key-on, so column =
+  DSP voice cannot hold. Needs `seq::Pattern` to grow past 8 tracks and
+  the sequencer to scroll columns; until then the eight columns show the
+  first eight entries in use.
+- **Jingle rips over running music** (Dragon Quest III/VI fanfares and
+  Inn, Otogirisou intros, Earthworm Jim ambience chunks, N-SPC sound
+  effects on voices 6/7): the other song has no header left in RAM, or
+  is a second chunk, and the tracker shows one song. Heartbeat jingles
+  also run on logical channels 8-10, which have no column.
+- **Snapshot timing** (Super Batter Up, Star Fox): N-SPC zeroes the
+  track pointers between patterns; the app's re-pick recovers within a
+  second, a plain snapshot does not.
+- Super Bomberman 3 "Select 2" trips an snes_spc assertion in debug
+  builds (an I/O register read outside $F0-$FF); release builds play it.
+
+## Unknown opcodes (2026-09-19)
+
+A scratchpad count (`unkcount`) of command events named "???" in the
+current song of every rip, after the naming pass, leaves:
+
+- **Ocean's N-SPC build**: its command table is a permutation of the
+  EarthBound set, not an extension (FC = instrument through the `SBC #CA`
+  percussion path, FD a b c = ADSR1/ADSR2/GAIN written straight to the
+  DSP, FB = per-voice value at $79/$038D). Dispatch: table at $094C
+  indexed by op*2 (so $0A0C for E0), lengths at $09EC + (op & 7F). Goes
+  with the Ocean song model above.
+- Chunsoft summer build (Otogirisou): a handful of A0-DA bytes in two
+  rips, one each, probably parse drift. The winter build skips B6-DA
+  as one-byte no-ops (shown as Nop now).
+- Heartbeat: length bytes typed as commands in "Fairy Flute" (DQ3) and
+  two DQ6 songs, a decode corner, not an opcode.
+- Prism Kikaku CC and ED in Dual Orb II, one or two events each.
+- Command sets whose unknown entries never occur in any rip here (ASCII's
+  Wizardry table, Compile 85/86/8B/8E/8F/93-95/98/9C/9E/A6-AF, Graphic
+  Research E0-E3/F2/F5/F6, Prism C7-C9/D2/E8, Pandora F4, Heartbeat
+  D5/DE/E5/EC/F8) keep their ??? until a rip uses them.
+
 ## Open
 
 - **SNES-side engines (Wario's Woods): room to grow.** The song bank has
@@ -56,13 +101,15 @@ folder), so ask for that file plus the .spc / .boomspc first.
   plus the four Bobby Earl games).
   `driver/falcom.cpp` is the smallest stream-driver template.
 - Ocean's N-SPC games (Addams Family, Jurassic Park, Lethal Weapon,
-  Push-Over, RoboCop 3, Cool World, Pugsley's Scavenger Hunt) parse their
-  patterns, but `find_track_pointers` never locates the live pointer array,
-  so there is no playhead, no follow and no instrument table. In Push-Over
-  the live words sit at $2F with unused voices parked at $0001, and the
-  three that move do not line up with one pattern's tracks, so the pattern
-  tables are probably not the plain eight words we assume. Needs its own
-  case in `nspc.cpp`.
+  Push-Over, RoboCop 3, Cool World, Pugsley's Scavenger Hunt): the song
+  structure is not an order list of 8-track patterns. Read from Addams
+  Family "Up and Down": a word at $8100 points at the song header ($8104:
+  a word, then eight words of per-voice order lists, 0 = voice unused);
+  each voice's list is track pointers ended by FFFF, each track a plain
+  N-SPC stream. Live track pointers are the words at $2F (unused voices
+  parked at $0001), the next-entry words sit at $20. Needs its own song
+  model in `nspc.cpp` (order i = entry i of every voice's list). 45 rips
+  across the seven games show a wrong song or none until then.
 - Namco / Junko Ozawa (driver/ozawa.*): Wagyan Paradise, 90 Minutes
   European Prime Goal and J.League Prime Goal 2 parse (103 of 109 rips
   pass parsecheck). Yuu Yuu Hakusho Tokubetsu Hen runs the same stream
