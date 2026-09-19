@@ -18,16 +18,27 @@ folder), so ask for that file plus the .spc / .boomspc first.
 - **Octave keys sometimes do nothing**: most likely another panel or a text
   field holding keyboard focus; check `io.WantTextInput` and which window
   the shortcut scope is tied to.
-- **A channel goes silent after adding a few notes** ("sounds like a delay
-  effect kicked in"). Smells like a reclaim / relocation edge: the grown
-  stream moves and a live pointer or call frame for that voice is left
-  behind. Needs the project file and the source rip.
+- Inindo "Villages" (Zophar set in `~/Downloads/spc/inindo-way-of-the-ninja`):
+  pattern 8's header at $EDAC is also its track 0 ($EDB0 points into the
+  header's own bytes, so the other seven pointers play as a silent stream
+  that ends on the $0000 of an unused voice). Relocating track 5 rewrites
+  that pseudo-stream; a target whose address bytes parse as a length and
+  a harmless command keeps it valid ($FBE0 did), anything else makes the
+  pattern unparsable and the song vanishes from the list. The relocation
+  code does not know about this yet. The "channel goes dead" report came
+  from reclaim overwriting the song's own bytes (fixed in 0.5.2).
 - **Tracker view should follow the playhead across orders** while playing
   (piano roll style follow for the grid).
 - **"Extract everything" mode**: a no-limits mode for making music (all
   data pulled out of the SPC, no ARAM ceiling, no reclaim) beside a
   console-accurate mode that keeps the limits for ROM hacks. Big design
   item; the export back to .spc would be best effort.
+- Sequencer shows free ARAM; rewrites release the bytes they leave behind
+  (deferred while a voice still reads them); $FF fill between the last
+  sample and the first song counts as free (10 KB in Smart Ball). Still
+  open: zero-filled runs below the songs stay reserved (they may be driver
+  variables), and an N-SPC edit that changes a note length inserts a
+  rest, so "shortening" a note grows the stream.
 - **Bug report from inside the app**: a Help item that zips crash.log, the
   ini files and the open project for posting.
 - Docs / tooltip: why one .spc holds several songs (the rip captures the
