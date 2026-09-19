@@ -17,6 +17,8 @@
 //   DD n ... DE   repeat n times    DF addr   call    E0 addr   jump
 //   E7 t / E8 t   transpose absolute / relative
 //   EB  loop point   EC  jump to the loop point   ED  loop point (first pass only)
+//   v2: EF i d  pitch envelope table i after d ticks   F2 d  vibrato delay
+//   (0 = off)   F3 s  signed volume slide per tick   F0 n  never read
 //   FE xx ...  sub-commands (echo off, percussion on/off, vibrato type,
 //              v2: registers, compares and conditional branches)
 //   FF  end of track / return
