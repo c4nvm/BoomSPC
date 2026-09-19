@@ -99,6 +99,7 @@ const CmdSpec kCmds2[0x2C] = {
     {1, "???", "Unknown", FxClass::Misc},                                // AB
 };
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 const CmdSpec kSlur = {1, "Slr", "Slur into the next note", FxClass::Time};
 }
 
@@ -139,7 +140,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 
 const CmdSpec& AsciiDriver::spec(uint8_t op) const {
     if (op == 0xFF) return kSlur;
-    if (op < 0x80 || op >= L.note_base) return kNop;
+    if (op < 0x80 || op >= L.note_base) return kUnknown;
     return L.version == 1 ? kCmds1[op - 0x80] : kCmds2[op - 0x80];
 }
 

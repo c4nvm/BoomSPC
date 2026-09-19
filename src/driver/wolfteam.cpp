@@ -60,6 +60,7 @@ const CmdSpec kCmds[0x23] = {
 };
 const CmdSpec kPatEnd = {1, "Pat", "Pattern end", FxClass::Song};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
+const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
 
 inline bool is_op(const Event& e, uint8_t op) { return e.type == EventType::Command && e.b[0] == op; }
 }
@@ -88,7 +89,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 
 const CmdSpec& WolfteamDriver::spec(uint8_t op) const {
     if (op == 0xFD) return kPatEnd;
-    if (op < 0x90 || op > 0xB2) return kNop;
+    if (op < 0x90 || op > 0xB2) return kUnknown;
     return kCmds[op - 0x90];
 }
 

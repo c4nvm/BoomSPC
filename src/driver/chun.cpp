@@ -110,7 +110,7 @@ std::unique_ptr<seq::Driver> detect(const uint8_t* ram) {
 
 const CmdSpec& ChunDriver::spec(uint8_t op) const {
     if (op < 0xA0) return kUnknown;
-    if (op < 0xDB) return L.summer ? kUnknown : op <= 0xB5 ? kGate : kNop;   // winter skips B6-DA
+    if (op < 0xDB) return (!L.summer && op <= 0xB5) ? kGate : kUnknown;
     if (L.summer) {
         if (op == 0xDB || op == 0xDC) return kNop;
         if (op == 0xF1) return kSync;

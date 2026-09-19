@@ -32,7 +32,7 @@ const CmdSpec kCmds[0x20] = {
     {2, "Gat", "Gate (n/8)", FxClass::Time},                             // EC
     {3, "DSP", "DSP register write", FxClass::Sys1},                     // ED
     {4, "Lp1", "One-level repeat (count, offset)", FxClass::Song, 2},    // EE
-    {3, "Dtn", "Pitch offset (16-bit, DSP pitch units)", FxClass::Pitch},   // EF
+    {3, "???", "Unknown", FxClass::Misc},                                // EF
     {1, "Noi", "Noise toggle", FxClass::Sys1},                           // F0
     {2, "Vol", "Volume", FxClass::Volume},                               // F1
     {1, "???", "Unknown", FxClass::Misc},                                // F2
@@ -44,7 +44,7 @@ const CmdSpec kCmds[0x20] = {
     {1, "Ret", "Return", FxClass::Song, 0, true},                        // F8
     {3, "Cal", "Call (offset)", FxClass::Song, 1, true},                 // F9
     {3, "Jmp", "Jump (offset)", FxClass::Song, 1},                       // FA
-    {2, "PEv", "Pitch envelope table n", FxClass::Pitch},                // FB
+    {2, "???", "Unknown", FxClass::Misc},                                // FB
     {2, "Ins", "Instrument", FxClass::Instrument},                       // FC
     {2, "Len", "Default note length", FxClass::Time},                    // FD
     {1, "Slr", "Slur into the next note", FxClass::Time},                // FE

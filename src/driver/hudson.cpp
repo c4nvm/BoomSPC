@@ -51,8 +51,8 @@ const CmdSpec kCmds[0x30] = {
     {1, "LpJ", "Jump to loop point", FxClass::Song},                    // EC
     {1, "Lp1", "Loop point (first pass only)", FxClass::Song},          // ED
     {2, "VlT", "Volume from table", FxClass::Volume},                   // EE
-    {3, "PEv", "Pitch envelope (table index, delay)", FxClass::Pitch},  // EF
-    {2, "Nop", "Stored per voice, never read (v2)", FxClass::Misc},     // F0
+    {3, "???", "Unknown", FxClass::Misc},                               // EF
+    {2, "???", "Unknown", FxClass::Misc},                               // F0
     {3, "Por", "Portamento (time, depth)", FxClass::Pitch},             // F1
     {1, "Nop", "(no effect)", FxClass::Misc},                           // F2
     {1, "Nop", "(no effect)", FxClass::Misc},                           // F3
@@ -69,8 +69,7 @@ const CmdSpec kCmds[0x30] = {
     {2, "Sub", "Sub-command", FxClass::Sys2},                           // FE
     {1, "End", "End / return", FxClass::Song},                          // FF
 };
-const CmdSpec kVbDelay = {2, "VbD", "Vibrato delay (ticks, 0 = off)", FxClass::Pitch};   // F2 (v2)
-const CmdSpec kVolSlide = {2, "VlS", "Volume slide (signed step per tick)", FxClass::Volume};   // F3 (v2)
+const CmdSpec kUnk1 = {2, "???", "Unknown", FxClass::Misc};
 const CmdSpec kVib3 = {4, "Vib", "Vibrato", FxClass::Pitch};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
 const CmdSpec kUnknown = {1, "???", "Unknown opcode (not in the driver's table)", FxClass::Misc};
@@ -145,8 +144,7 @@ const CmdSpec& HudsonDriver::spec(uint8_t op) const {
     if (L.version == 2) {
         if (op == 0xD7 || op == 0xD8 || op == 0xEE) return kNop;
         if (op == 0xE2) return kVib3;
-        if (op == 0xF2) return kVbDelay;
-        if (op == 0xF3) return kVolSlide;
+        if (op == 0xF2 || op == 0xF3) return kUnk1;
     }
     return kCmds[op - 0xD0];
 }
