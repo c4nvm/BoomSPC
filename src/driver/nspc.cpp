@@ -107,6 +107,22 @@ const CommandSpec kIntelliTaExtra[] = {
     {"Percussion table", 1},  // FC
     {"Sub-event", 1},         // FD
 };
+// Bullet-Proof's Super Tetris 3 build (index = op - E0 - 27).
+const CommandSpec kSuperTetris3Extra[] = {
+    {"Legato on (no retrigger until a rest)", 0},   // FB
+    {"Noise clock (0 = off)", 1},                   // FC
+    {"ADSR", 2},                                    // FD
+    {"Sample override (sample, pitch hi, lo)", 3},  // FE
+    {"Nop", 0},                                     // FF
+};
+// Human's build (Clock Tower).
+const CommandSpec kHumanExtra[] = {
+    {"Skip a byte", 1},                             // FB
+    {"Nop", 0},                                     // FC
+    {"Restart track", 0},                           // FD
+    {"Voice mode flag (alternate voice update)", 0},// FE
+    {"Nop", 0},                                     // FF
+};
 const CommandSpec kIntelliFe4Extra[] = {
     {"Echo on", 0},           // F5
     {"Echo off", 0},          // F6
@@ -155,8 +171,11 @@ const char* Layout::cmd_name(uint8_t b) const {
     if (profile == Profile::IntelliFe3 && x < int(sizeof kIntelliFe3Extra / sizeof *kIntelliFe3Extra)) return kIntelliFe3Extra[x].name;
     if (profile == Profile::IntelliTa && x < int(sizeof kIntelliTaExtra / sizeof *kIntelliTaExtra)) return kIntelliTaExtra[x].name;
     if (profile == Profile::IntelliFe4 && x < int(sizeof kIntelliFe4Extra / sizeof *kIntelliFe4Extra)) return kIntelliFe4Extra[x].name;
+    if (profile == Profile::SuperTetris3 && x < int(sizeof kSuperTetris3Extra / sizeof *kSuperTetris3Extra)) return kSuperTetris3Extra[x].name;
+    if (profile == Profile::Human && x < int(sizeof kHumanExtra / sizeof *kHumanExtra)) return kHumanExtra[x].name;
     if (profile == Profile::Konami && b == 0xE5) return "Loop start";
     if (profile == Profile::Konami && b == 0xE6) return "Loop end";
+    if (profile == Profile::Konami && b == 0xFB) return "ADSR + GAIN (attack*10+decay, sustain, gain)";
     if (profile == Profile::Quintet && b == 0xFF) return "ADSR";
     if (profile == Profile::Quintet && b == 0xF4) return "Tuning";
     return "Unknown";
@@ -190,6 +209,7 @@ const char* profile_name(Profile p) {
         case Profile::FalcomYs4: return "Falcom (Ys IV)";
         case Profile::Lemmings: return "Lemmings";
         case Profile::Quintet: return "Quintet";
+        case Profile::SuperTetris3: return "Bullet-Proof (Super Tetris 3)";
         default: return "";
     }
 }
@@ -325,8 +345,11 @@ Layout detect(const uint8_t* ram) {
     const int fe3_note[] = {0x68, 0x40, 0xB0, 0x0C, 0x28, 0x3F, 0xFD, 0xF6};
     const int fe4_note[] = {0x01, 0x30, 0x13, 0x68, 0x40, 0x28, 0x3F, 0xFD};
     const int quintet[] = {0xE5, W, W, 0xEC, W, W, 0xDA, W, 0x3A, W, 0x3A, W};
+    // FE handler of the Super Tetris 3 build: MOV A,#1 / MOV !$06F0+X,A / CALL / MOV !$03D0+X,A / CALL / MOV !$0420+X,A / CALL / MOV !$0410+X,A / RET
+    const int st3[] = {0xE8, 0x01, 0xD5, W, W, 0x3F, W, W, 0xD5, W, W, 0x3F, W, W, 0xD5, W, W, 0x3F, W, W, 0xD5, W, W, 0x6F};
     if (L.profile == Profile::Standard) {
         if (int a = find_pat(ram, code_lo, code_hi, quintet, 12); a >= 0 && ram[a + 7] == ram[a + 9] && ram[a + 9] == ram[a + 11]) { L.profile = Profile::Quintet; if (!L.order_zp) L.order_zp = ram[a + 7]; }
+        else if (int a = find_pat(ram, code_lo, code_hi, st3, 24); a >= 0 && ram[a + 6] == ram[a + 12] && ram[a + 12] == ram[a + 18]) L.profile = Profile::SuperTetris3;
         else if (find_pat(ram, code_lo, code_hi, lem, 8) >= 0) L.profile = Profile::Lemmings;
         else if (find_pat(ram, code_lo, code_hi, intelli_fa, 8) >= 0 || L.cmd_base == 0xD6 || (L.cmd_base == 0xDA && !earlier)) {
             if (find_pat(ram, code_lo, code_hi, fe3_note, 8) >= 0 || L.cmd_base == 0xD6) L.profile = Profile::IntelliFe3;

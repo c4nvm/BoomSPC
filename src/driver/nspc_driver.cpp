@@ -313,10 +313,30 @@ uint8_t NspcDriver::note_byte(int semitone_from_c0) const {
     return uint8_t(std::clamp(0x80 + semitone_from_c0 - 12, 0x80, int(L.tie) - 1));
 }
 
+// Codes for the commands past the standard set (see the profile tables in nspc.cpp).
+const char* kFe3ExtraCodes[] = {"EcO", "EcF", "LgO", "LgF", "Mod", "Prt", "JmC", "Jmp", "VTb", "VpD", "VpL", "ADS", "GnS"};
+const char* kTaExtraCodes[]  = {"EcO", "EcF", "ADS", "GnS", "GnT", "VpD", "VpL", "PcT", "Sub"};
+const char* kFe4ExtraCodes[] = {"EcO", "EcF", "Gn1", "Gn2", "F9?", "VpD", "VpL", "PcT", "Sub"};
+const char* kSt3ExtraCodes[] = {"Lgt", "Noi", "ADS", "Smp", "Nop"};
+const char* kHumanExtraCodes[] = {"Skp", "Nop", "Rst", "VMd", "Nop"};
+
 const char* NspcDriver::cmd_code(uint8_t op) const {
     int i = op - L.cmd_base;
     if (L.variant == Variant::SMW && i >= 0 && i < int(sizeof kSmwCodes / sizeof *kSmwCodes)) return kSmwCodes[i];
     if (L.variant == Variant::EB && i >= 0 && i < int(sizeof kEbCodes / sizeof *kEbCodes)) return kEbCodes[i];
+    const int x = i - L.command_count;
+    if (x >= 0) {
+        if (L.profile == Profile::IntelliFe3 && x < int(sizeof kFe3ExtraCodes / sizeof *kFe3ExtraCodes)) return kFe3ExtraCodes[x];
+        if (L.profile == Profile::IntelliTa && x < int(sizeof kTaExtraCodes / sizeof *kTaExtraCodes)) return kTaExtraCodes[x];
+        if (L.profile == Profile::IntelliFe4 && x < int(sizeof kFe4ExtraCodes / sizeof *kFe4ExtraCodes)) return kFe4ExtraCodes[x];
+        if (L.profile == Profile::SuperTetris3 && x < int(sizeof kSt3ExtraCodes / sizeof *kSt3ExtraCodes)) return kSt3ExtraCodes[x];
+        if (L.profile == Profile::Human && x < int(sizeof kHumanExtraCodes / sizeof *kHumanExtraCodes)) return kHumanExtraCodes[x];
+    }
+    if (L.profile == Profile::Konami && op == 0xE5) return "Lp[";
+    if (L.profile == Profile::Konami && op == 0xE6) return "Lp]";
+    if (L.profile == Profile::Konami && op == 0xFB) return "ADS";
+    if (L.profile == Profile::Quintet && op == 0xFF) return "ADS";
+    if (L.profile == Profile::Quintet && op == 0xF4) return "Tun";
     return "???";
 }
 

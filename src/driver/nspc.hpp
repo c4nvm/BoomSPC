@@ -29,7 +29,7 @@
 
 namespace nspc {
 enum class Variant { Unknown, SMW, EB };
-enum class Profile { Unknown, Earlier, Standard, IntelliFe3, IntelliTa, IntelliFe4, Konami, Human, Tose, FalcomYs4, Lemmings, Quintet };
+enum class Profile { Unknown, Earlier, Standard, IntelliFe3, IntelliTa, IntelliFe4, Konami, Human, Tose, FalcomYs4, Lemmings, Quintet, SuperTetris3 };
 
 struct CommandSpec {
     const char* name;
