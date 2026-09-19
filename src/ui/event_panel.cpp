@@ -97,6 +97,13 @@ void draw_event_panel(App& app) {
         ImGui::PushStyleColor(ImGuiCol_Text, col);
         ImGui::Text("t%d  %s%s", e.tick, D.event_text(e).c_str(), e.in_sub ? "  (shared: edits unroll)" : "");
         ImGui::PopStyleColor();
+        // The raw bytes, for reports about opcodes the driver does not know.
+        std::string raw;
+        { char b[8]; std::snprintf(b, sizeof b, "$%04X:", e.addr); raw = b; for (int i = 0; i < e.size; ++i) { std::snprintf(b, sizeof b, " %02X", e.b[i]); raw += b; } }
+        if (ImGui::IsItemHovered()) tooltip_spaced("%s", raw.c_str());
+        ImGui::SameLine();
+        if (ImGui::SmallButton("copy")) ImGui::SetClipboardText((raw + "  " + D.name() + "  " + D.event_text(e)).c_str());
+        if (ImGui::IsItemHovered()) tooltip_spaced("copy the address, bytes and driver name to the clipboard");
         if (!in_place || stream) {
             ImGui::SameLine();
             if (ImGui::SmallButton("x")) { if (e.in_sub) D.unroll_at(ev, e.tick); int k = -1; for (int j = 0; j < int(ev.size()); ++j) if (ev[size_t(j)].tick == e.tick && ev[size_t(j)].type == e.type && ev[size_t(j)].b[0] == e.b[0] && !ev[size_t(j)].in_sub) { k = j; break; } if (k >= 0) { Tracker::remove_event(D, ev, k); changed = true; } ImGui::PopID(); break; }
