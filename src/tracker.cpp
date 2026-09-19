@@ -167,7 +167,7 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
     return free;
 }
 
-int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
+int Tracker::find_free_space(const EngineSnapshot& s, int need, int* run_len) const {
     const bool reclaim = reclaim_other_songs;
     for (int pass = 0; pass < (reclaim ? 2 : 1); ++pass) {
         reclaim_other_songs = pass == 1;
@@ -179,7 +179,7 @@ int Tracker::find_free_space(const EngineSnapshot& s, int need) const {
                 if (run > best_len) { best_len = run; best = a - run + 1; }
             }
             if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "find_free_space(%d): best run %d at $%04X (fill %02X%s)\n", need, best_len, best, fill, pass ? ", reclaiming" : "");
-            if (best_len >= need + 2) { reclaim_other_songs = reclaim; return best + 1; }
+            if (best_len >= need + 2) { reclaim_other_songs = reclaim; if (run_len) *run_len = best_len - 2; return best + 1; }
         }
     }
     reclaim_other_songs = reclaim;
@@ -234,12 +234,12 @@ bool Tracker::default_args(const seq::Driver& d, const seq::Pattern& pat, int vo
     return true;
 }
 
-int Tracker::find_space_or_reclaim(const EngineSnapshot& s, int need, bool& reclaimed) {
+int Tracker::find_space_or_reclaim(const EngineSnapshot& s, int need, bool& reclaimed, int* run_len) {
     reclaimed = false;
-    int at = find_free_space(s, need);
+    int at = find_free_space(s, need, run_len);
     if (at >= 0 || reclaim_other_songs) return at;
     reclaim_other_songs = true;
-    at = find_free_space(s, need);
+    at = find_free_space(s, need, run_len);
     reclaim_other_songs = false;
     reclaimed = at >= 0;
     if (reclaimed) reclaim_other_songs = true;
@@ -438,9 +438,35 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         int avail = int(t.end_addr) - int(t.addr);
         if (int(bytes.size()) > avail) {
             bool reclaimed = false;
-            int at = find_space_or_reclaim(snap, int(bytes.size()), reclaimed);
+            int run = 0;
+            int at = find_space_or_reclaim(snap, int(bytes.size()), reclaimed, &run);
             if (at < 0) { r.msg = "track grew and no free RAM was found, even in the other songs' data"; return r; }
             if (reclaimed) note += " (RAM of the other songs reclaimed)";
+            // A track pointer can double as another voice's bytes (Inindo points
+            // voice 0 at its own pattern header, so the pointers play as a
+            // stream). Slide along the run until the pattern still parses.
+            if (const nspc::Layout* L = nspc_layout()) {
+                std::vector<uint8_t> ram(snap.ram, snap.ram + 0x10000);
+                auto parses = [&](int cand) {
+                    ram[(pat.addr + voice * 2) & 0xFFFF] = uint8_t(cand & 0xFF);
+                    ram[(pat.addr + voice * 2 + 1) & 0xFFFF] = uint8_t(cand >> 8);
+                    std::memcpy(ram.data() + cand, bytes.data(), bytes.size());
+                    const nspc::Pattern p = nspc::parse_pattern(ram.data(), *L, pat.addr);
+                    for (int v = 0; v < 8; ++v) {
+                        const seq::Track& tr = p.tracks[v];
+                        if (!tr.addr || (v != voice && !pat.tracks[v].addr)) continue;
+                        if (tr.truncated || tr.events.empty() || tr.events.back().type != EventType::End) return false;
+                    }
+                    return true;
+                };
+                int chosen = -1;
+                for (int cand = at; cand + int(bytes.size()) <= at + run && chosen < 0; ++cand) {
+                    std::memcpy(ram.data() + at, snap.ram + at, size_t(run));
+                    if (parses(cand)) chosen = cand;
+                }
+                if (chosen < 0) { r.msg = "no place in free RAM keeps this pattern readable (its header doubles as a track)"; return r; }
+                at = chosen;
+            }
             dest = uint16_t(at);
             relocated = true;
         }

@@ -66,7 +66,7 @@ struct Tracker {
     // Free RAM for `need` bytes: without touching other songs first, then
     // (when `reclaim_other_songs` is off) by taking their bytes anyway so an
     // edit never fails for lack of space; `reclaimed` reports that fallback.
-    int  find_space_or_reclaim(const EngineSnapshot& s, int need, bool& reclaimed);
+    int  find_space_or_reclaim(const EngineSnapshot& s, int need, bool& reclaimed, int* run_len = nullptr);
 
     // Largest run of zero bytes that is not stack, echo buffer, directory or
     // sample data. Returns -1 if nothing big enough exists.
@@ -76,7 +76,7 @@ struct Tracker {
     // once every live pointer has left (flush_releases, called each frame).
     std::vector<std::pair<uint16_t, uint16_t>> pending_release;
     void flush_releases(const EngineSnapshot& s, Engine& eng);
-    int find_free_space(const EngineSnapshot& s, int need) const;
+    int find_free_space(const EngineSnapshot& s, int need, int* run_len = nullptr) const;
     std::vector<bool> free_map(const EngineSnapshot& s, uint8_t fill) const;
     bool bytes_free(const EngineSnapshot& s, int from, int len) const;
 };
