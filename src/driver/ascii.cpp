@@ -107,7 +107,9 @@ Layout detect_layout(const uint8_t* ram) {
     const int load[] = {0xE8, W, 0x3F, W, W, 0xF5, W, W, 0xD5, W, W, 0xF5, W, W, 0xD4, W, 0x1D, 0x10, 0xED};
     int p = find_pattern(ram, 0x200, 0x4000, load, 19);
     if (p < 0) return Layout{};
-    L.voices = uint8_t(ram[p + 1] + 1);
+    // MOV X,#n-1 before the loop counts the voices; the MOV A,#5 the pattern
+    // starts on is the init argument.
+    L.voices = ram[p - 2] == 0xCD ? uint8_t(ram[p - 1] + 1) : uint8_t(ram[p + 1] + 1);
     L.header_lo = rd16(ram, p + 6); L.ptr_lo = rd16(ram, p + 9);
     L.header_hi = rd16(ram, p + 12); L.ptr_hi_zp = ram[p + 15];
     if (L.header_hi != L.header_lo + 8 || L.voices > 8) return Layout{};
