@@ -134,6 +134,7 @@ struct Driver {
     virtual bool    is_note_byte(uint8_t b) const = 0;    // a pitched note
     virtual bool    is_percussion(uint8_t b) const { (void)b; return false; }
     virtual int     percussion_index(uint8_t b) const { (void)b; return 0; }
+    virtual int     event_percussion(const Event& e) const { return percussion_index(e.b[0]); }
     virtual int     note_semitone(uint8_t b) const = 0;   // from C-0
     virtual uint8_t note_byte(int semitone_from_c0) const = 0;
     virtual uint8_t note_min() const = 0;                 // lowest / highest pitched note byte

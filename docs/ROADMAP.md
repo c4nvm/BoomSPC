@@ -70,9 +70,12 @@ folder), so ask for that file plus the .spc / .boomspc first.
   European Prime Goal and J.League Prime Goal 2 parse (103 of 109 rips
   pass parsecheck). Yuu Yuu Hakusho Tokubetsu Hen runs the same stream
   format but lays its song table out differently, with no `MOV Y,#$03 /
-  MUL YA` record lookup, so `detect_layout` does not find it. Editing is
-  off (`in_place_only`): a chord lives in one stream, so growing a track
-  would need the whole chord list rewritten.
+  MUL YA` record lookup, so `detect_layout` does not find it. Columns are
+  DSP voices: the track that masks a voice is decoded for that bit alone,
+  so the columns of one track share bytes and an edit in one rewrites the
+  whole program (editing two columns of the same track in one operation
+  would lose the first edit). A track that changes its 01 mask mid-song
+  stays in its first columns.
 - SLICK notes carry a gate (how long they sound) separate from the delay
   to the next event; the tracker shows the delay as the note's length and
   the gate in the event text. Earthworm Jim rips are packed: most have no

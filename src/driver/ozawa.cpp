@@ -79,6 +79,13 @@ Layout detect_layout(const uint8_t* ram) {
     }
     if (!L.song_table) return Layout{};
 
+    // The 01 handler: ... / CALL fetch / MOV $09+X,A
+    {
+        const uint16_t h = uint16_t(ram[(L.cmd_table + 2) & 0xFFFF] | (ram[(L.cmd_table + 3) & 0xFFFF] << 8));
+        for (int i = 0; i < 20; ++i)
+            if (ram[(h + i) & 0xFFFF] == 0x3F && ram[(h + i + 3) & 0xFFFF] == 0xD4) { L.mask_zp = ram[(h + i + 4) & 0xFFFF]; break; }
+    }
+
     // MOV X,#$00 / MOV $DF,X / MOV $DA,X / MOV $DB,X / MOV $DC,X / MOV A,$49+X
     const int state[] = {0xCD, 0x00, 0xD8, W, 0xD8, W, 0xD8, W, 0xD8, W, 0xF4, W};
     if (int a = find_pattern(ram, 0x200, 0x2000, state, 12); a >= 0) L.state_zp = ram[a + 11];
@@ -130,10 +137,53 @@ bool covers(const uint8_t* ram, uint16_t start, uint16_t ptr, int limit = 8000) 
     }
     return false;
 }
+
+// The 01 masks a program sets: the first one and the union, over a bounded
+// walk that follows calls and jumps.
+void track_masks(const uint8_t* ram, uint16_t start, int& first, int& all) {
+    first = -1; all = 0;
+    uint16_t p = start, stack[8];
+    int sp = 0;
+    for (int n = 0; n < 3000; ++n) {
+        const uint8_t b = ram[p];
+        if (b > 0x97 || (b > 0x14 && b < 0x18)) return;
+        const int sz = event_size(ram + p);
+        if (b == 0x01) { const int m = ram[(p + 1) & 0xFFFF]; if (first < 0) first = m; all |= m; }
+        if (b == 0x03) { if (!sp) return; p = stack[--sp]; continue; }
+        if (b == 0x08) { p = uint16_t(ram[(p + 1) & 0xFFFF] | (ram[(p + 2) & 0xFFFF] << 8)); continue; }
+        if (b == 0x02) {
+            if (sp >= 8) return;
+            stack[sp++] = uint16_t(p + sz);
+            p = uint16_t(ram[(p + 1) & 0xFFFF] | (ram[(p + 2) & 0xFFFF] << 8));
+            continue;
+        }
+        p = uint16_t(p + sz);
+    }
+}
+
+// Which track drives each DSP voice: the first masks win, later ones fill
+// in, a track without any 01 keeps its live mask (or its own bit).
+std::array<int8_t, 8> owners_of(const uint8_t* ram, const Layout& L, const std::array<uint16_t, 4>& g) {
+    int first[4], all[4];
+    for (int t = 0; t < 4; ++t) {
+        first[t] = -1; all[t] = 0;
+        if (!g[size_t(t)]) continue;
+        track_masks(ram, g[size_t(t)], first[t], all[t]);
+        if (first[t] < 0) { first[t] = L.mask_zp ? ram[(L.mask_zp + t * 2) & 0xFF] : 0; if (!first[t]) first[t] = 1 << t; all[t] |= first[t]; }
+    }
+    std::array<int8_t, 8> o;
+    for (int v = 0; v < 8; ++v) {
+        o[size_t(v)] = -1;
+        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (first[t] & (1 << v))) o[size_t(v)] = int8_t(t);
+        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (all[t] & (1 << v))) o[size_t(v)] = int8_t(t);
+    }
+    return o;
+}
 }
 
 std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
     groups_.clear();
+    owners_.clear();
     headers_.clear();
     std::vector<std::pair<uint8_t, uint16_t>> rec;
     for (int i = 0; i < L.entries; ++i) {
@@ -153,6 +203,7 @@ std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
     }
     if (any_live) {
         groups_.push_back(live);
+        owners_.push_back(owners_of(ram, L, live));
         headers_.push_back(uint16_t(L.song_table));
     }
     // Then every table entry on its own, so the rest of the bank can be read.
@@ -163,9 +214,27 @@ std::vector<uint16_t> OzawaDriver::song_headers(const uint8_t* ram) const {
         std::array<uint16_t, 4> g{};
         g[trk] = addr;
         groups_.push_back(g);
+        owners_.push_back(owners_of(ram, L, g));
         headers_.push_back(uint16_t((L.song_table + i * 3) & 0xFFFF));
     }
     return headers_;
+}
+
+void OzawaDriver::select_song(uint16_t header) const {
+    const int g = group_of(header);
+    if (g >= 0) owner_ = owners_[size_t(g)];
+}
+
+seq::Position OzawaDriver::locate(const uint8_t* ram, const seq::Song& song, const seq::Position* prev) const {
+    seq::Position pos = stream::Driver::locate(ram, song, prev);
+    pos.track_ptr_base = L.ptr_zp;   // the four track pointers, whichever column maps where
+    return pos;
+}
+
+State OzawaDriver::edit_state(const std::vector<Event>& ev) const {
+    State s;
+    for (const Event& e : ev) if (e.b[0] == 0x09 && (e.b[15] & 0x80)) { s.voice = e.b[15] & 7; break; }
+    return s;
 }
 
 int OzawaDriver::group_of(uint16_t header) const {
@@ -175,9 +244,18 @@ int OzawaDriver::group_of(uint16_t header) const {
 
 uint16_t OzawaDriver::track_start(const uint8_t* ram, uint16_t header, int v) const {
     (void)ram;
-    if (v < 0 || v > 3) return 0;
+    if (v < 0 || v > 7) return 0;
     const int g = group_of(header);
-    return g < 0 ? 0 : groups_[size_t(g)][size_t(v)];
+    if (g < 0) return 0;
+    const int t = owners_[size_t(g)][size_t(v)];
+    return t < 0 ? 0 : groups_[size_t(g)][size_t(t)];
+}
+
+// Index of DSP voice v's value inside a 09's operands, -1 when the mask
+// leaves the voice alone.
+static int value_index(const uint8_t* p, int v) {
+    if (v < 0 || !(p[1] & (1 << v))) return -1;
+    return 2 + popcount8(uint8_t(p[1] & ((1 << v) - 1)));
 }
 
 // State: len = note length, x[0] = length multiplier, x[1] = voice mask.
@@ -193,13 +271,19 @@ void OzawaDriver::decode(const uint8_t* p, int pc, State& s, Event& e, Flow& f) 
         const int mul = s.x[0] ? s.x[0] : 1;
         e.duration = std::max(1, s.len * mul);
         if (b == 0x0E) { e.type = EventType::Tie; return; }
-        // The first value in the mask is the voice the grid shows; the rest of
-        // the chord stays in the bytes.
-        int first = -1;
-        for (int i = 2; i < e.size; ++i) if (p[i] != 0xFF) { first = p[i]; break; }
-        if (first < 0) { e.type = EventType::Rest; return; }
+        // The column's own value; parsed events remember their column in
+        // b[15] so edits and retimes decode the same way.
+        int v = s.voice;
+        if (v < 0 && (p[15] & 0x80)) v = p[15] & 7;
+        if (v >= 0) e.b[15] = uint8_t(0x80 | v);
+        int k = value_index(p, v);
+        if (v < 0) for (int i = 2; i < e.size; ++i) if (p[i] != 0xFF) { k = i; break; }
+        const int val = k < 0 ? -1 : p[k];
+        if (val < 0) { e.type = v < 0 ? EventType::Rest : EventType::Tie; return; }
+        if (val == 0xFF) { e.type = EventType::Rest; return; }
+        if (val >= 0x80) { e.type = EventType::Percussion; return; }
         e.type = EventType::Note;
-        e.pitch = note_semitone(uint8_t(first));
+        e.pitch = note_semitone(uint8_t(val));
         return;
     }
     switch (b) {
@@ -216,6 +300,43 @@ void OzawaDriver::decode(const uint8_t* p, int pc, State& s, Event& e, Flow& f) 
     (void)pc;
 }
 
+int OzawaDriver::event_percussion(const Event& e) const {
+    const int k = value_index(e.b, e.b[15] & 0x80 ? e.b[15] & 7 : -1);
+    return k < 0 ? 0 : e.b[k] & 0x7F;
+}
+
+bool OzawaDriver::transpose_event(Event& e, int semis) const {
+    if (e.type != EventType::Note || e.b[0] != 0x09) return false;
+    const int k = value_index(e.b, e.b[15] & 0x80 ? e.b[15] & 7 : -1);
+    if (k < 0) return false;
+    const int val = e.b[k] + semis;
+    if (val < 0 || val > 0x53) return false;
+    e.b[k] = uint8_t(val);
+    return true;
+}
+
+// Sets the column's value; a 09 that left the voice alone gains its bit,
+// a rest (0E) becomes a one-voice 09.
+void OzawaDriver::apply_note_byte(Event& e, uint8_t byte) const {
+    const int v = e.b[15] & 0x80 ? e.b[15] & 7 : 0;
+    if (e.b[0] == 0x0E) {
+        e.b[0] = 0x09; e.b[1] = uint8_t(1 << v); e.b[2] = byte; e.size = 3;
+    } else if (e.b[0] == 0x09) {
+        int k = value_index(e.b, v);
+        if (k < 0) {
+            k = 2 + popcount8(uint8_t(e.b[1] & ((1 << v) - 1)));
+            if (e.size >= 15) return;
+            for (int i = e.size; i > k; --i) e.b[i] = e.b[i - 1];
+            e.b[1] |= uint8_t(1 << v);
+            ++e.size;
+        }
+        e.b[k] = byte;
+    } else return;
+    e.b[15] = uint8_t(0x80 | v);
+    e.type = byte == 0xFF ? EventType::Rest : byte >= 0x80 ? EventType::Percussion : EventType::Note;
+    e.pitch = e.type == EventType::Note ? note_semitone(byte) : -1;
+}
+
 int OzawaDriver::jump_target(const Event& e) const {
     if (e.type != EventType::Command) return -1;
     const uint8_t op = e.b[0];
@@ -228,8 +349,14 @@ std::string OzawaDriver::event_text(const Event& e) const {
     char b[96];
     if (e.b[0] == 0x09) {
         std::string s = "note";
-        for (int i = 2; i < e.size; ++i) {
-            std::snprintf(b, sizeof b, " %s", e.b[i] == 0xFF ? "--" : note_name(e.b[i]).c_str());
+        for (int v = 0, k = 2; v < 8; ++v) {
+            if (!(e.b[1] & (1 << v))) continue;
+            const uint8_t val = e.b[k++];
+            if (val < 0x54) std::snprintf(b, sizeof b, " %d:%s", v, note_name(val).c_str());
+            else if (val == 0x54) std::snprintf(b, sizeof b, " %d:retrig", v);
+            else if (val < 0x80) std::snprintf(b, sizeof b, " %d:noise%d", v, val & 0x1F);
+            else if (val < 0xFF) std::snprintf(b, sizeof b, " %d:P%02d", v, val & 0x7F);
+            else std::snprintf(b, sizeof b, " %d:off", v);
             s += b;
         }
         return s;

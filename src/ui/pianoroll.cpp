@@ -51,7 +51,7 @@ std::vector<Bar> bars_of(const seq::Driver& D, const seq::Track& t) {
         if (e.type == EventType::Note || e.type == EventType::Percussion) {
             Bar b;
             b.ev = i; b.tick = e.tick; b.dur = e.duration; b.ins = ins; b.in_sub = e.in_sub;
-            if (e.type == EventType::Note) b.semitone = D.event_semitone(e); else b.perc = D.percussion_index(e.b[0]);
+            if (e.type == EventType::Note) b.semitone = D.event_semitone(e); else b.perc = D.event_percussion(e);
             b.attack = D.note_retriggers(t.events, i);
             if (D.has_qv() && qv >= 0 && (qv >> 4) < 7) b.release = std::max(1, e.duration * ((qv >> 4) + 1) / 8);
             out.push_back(b);

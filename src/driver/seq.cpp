@@ -77,7 +77,7 @@ std::string Driver::event_text(const Event& e) const {
         case EventType::Note: return note_name(e);
         case EventType::Tie: return "tie";
         case EventType::Rest: return "rest (note off)";
-        case EventType::Percussion: std::snprintf(b, sizeof b, "percussion %d", percussion_index(e.b[0])); return b;
+        case EventType::Percussion: std::snprintf(b, sizeof b, "percussion %d", event_percussion(e)); return b;
     }
     return "?";
 }

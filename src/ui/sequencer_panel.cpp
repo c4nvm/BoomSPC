@@ -677,7 +677,7 @@ void draw_sequencer_panel(App& app) {
                     case EventType::Note: std::snprintf(nb, sizeof nb, "%s", D.note_name(e).c_str()); ntxt = nb; ncol = col(TC_NOTE); break;
                     case EventType::Tie: ntxt = "^^^"; ncol = col(TC_NOTE_TIE); break;
                     case EventType::Rest: ntxt = "OFF"; ncol = col(TC_NOTE_OFF); break;
-                    case EventType::Percussion: std::snprintf(nb, sizeof nb, "P%02d", D.percussion_index(e.b[0])); ntxt = nb; ncol = col(TC_NOTE_PERC); break;
+                    case EventType::Percussion: std::snprintf(nb, sizeof nb, "P%02d", D.event_percussion(e)); ntxt = nb; ncol = col(TC_NOTE_PERC); break;
                     default: break;
                 }
                 if (e.in_sub || e.sub_iter > 0) ncol = col(TC_NOTE_SUB);
