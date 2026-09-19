@@ -159,9 +159,11 @@ void draw_arrangement(App& app, int pat_idx, float head_tick) {
     }
     const int rows = (length + tpr - 1) / tpr;
     const int r0 = std::max(0, int((sx - key_w) / (ppt * tpr)) - 1), r1 = std::min(rows, int((sx - key_w + win_size.x) / (ppt * tpr)) + 2);
+    const float row_px = ppt * tpr;   // zoomed out, a line per highlight would be a solid wall
     for (int r = r0; r <= r1; ++r) {
         const bool hi2 = th.row_hi2 > 0 && r % th.row_hi2 == 0, hi1 = th.row_hi1 > 0 && r % th.row_hi1 == 0;
         if (!hi1 && !hi2) continue;
+        if (row_px * std::max(1, hi2 ? th.row_hi2 : th.row_hi1) < 4.0f) continue;
         const float x = tick_x(float(r * tpr));
         dl->AddLine(ImVec2(x, view_y0), ImVec2(x, lane_y(8)), th.u32(hi2 ? TC_ROW_INDEX_HI2 : TC_ROW_INDEX_HI1, hi2 ? 0.6f : 0.3f));
     }
@@ -211,8 +213,9 @@ void draw_arrangement(App& app, int pat_idx, float head_tick) {
     dl->PopClipRect();
     dl->PushClipRect(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), true);
     dl->AddRectFilled(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), th.u32(TC_CHANNEL_HEADER_BG));
+    const int lab_step = ruler_label_step(rows, ppt * tpr, cw);
     for (int r = r0; r <= r1; ++r) {
-        if (th.row_hi1 > 0 && r % th.row_hi1) continue;
+        if (r % lab_step) continue;
         const float x = tick_x(float(r * tpr));
         char b[16]; std::snprintf(b, sizeof b, th.hex_rows ? "%02X" : "%d", r);
         dl->AddText(ImVec2(x + 2, win.y + 2), th.u32(th.row_hi2 > 0 && r % th.row_hi2 == 0 ? TC_ROW_INDEX_HI2 : TC_ROW_INDEX_HI1), b);

@@ -555,7 +555,9 @@ Pattern parse_pattern(const uint8_t* ram, const Layout& L, uint16_t addr) {
         uint16_t ta = L.resolve(rd16(ram, addr + v * 2));
         p.tracks[v] = parse_track(ram, L, ta);
         const Track& t = p.tracks[v];
-        if (t.addr && !t.truncated && (len < 0 || t.total_ticks < len)) len = t.total_ticks;
+        // A track that only sets state carries no timing, so it must not
+        // collapse the pattern's length to zero.
+        if (t.addr && !t.truncated && t.total_ticks > 0 && (len < 0 || t.total_ticks < len)) len = t.total_ticks;
     }
     p.length_ticks = std::max(len, 0);
 

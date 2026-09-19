@@ -37,7 +37,8 @@ struct Tracker {
     // Full driver detection + song discovery from a RAM snapshot.
     void analyze(const EngineSnapshot& s);
     // Per-frame: refresh the live position (and rescan if nothing was found yet).
-    void update(const EngineSnapshot& s, double now);
+    // repick = false keeps the song while RAM is in flux (a seek in progress).
+    void update(const EngineSnapshot& s, double now, bool repick = true);
     // Re-parses the current song after RAM edits.
     void reparse(const EngineSnapshot& s);
 

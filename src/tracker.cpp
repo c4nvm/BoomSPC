@@ -39,9 +39,9 @@ void Tracker::analyze(const EngineSnapshot& s) {
     rescans_left = pos.valid ? 0 : 6;
 }
 
-void Tracker::update(const EngineSnapshot& s, double now) {
+void Tracker::update(const EngineSnapshot& s, double now, bool repick) {
     if (!analyzed || !s.loaded) return;
-    if (drv && !song_pinned && now >= next_repick) {
+    if (drv && repick && !song_pinned && now >= next_repick) {
         next_repick = fast_repicks > 0 ? now : now + 0.5;
         if (fast_repicks > 0) --fast_repicks;
         int pick = drv->pick_current_song(s.ram, songs);
@@ -255,6 +255,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
     Result r;
     seq::Song* sg = song();
     if (!sg || !drv || pattern_idx < 0 || pattern_idx >= int(sg->patterns.size())) { r.msg = "no pattern"; return r; }
+    song_pinned = true;
     seq::Pattern& pat = sg->patterns[size_t(pattern_idx)];
     seq::Track& t = pat.tracks[voice];
 

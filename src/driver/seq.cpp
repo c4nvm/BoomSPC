@@ -23,6 +23,7 @@
 #include "neverland.hpp"
 #include "berlioz.hpp"
 #include "slick.hpp"
+#include "ozawa.hpp"
 #include "wolfteam.hpp"
 #include "heartbeat.hpp"
 #include "nspc.hpp"
@@ -251,6 +252,7 @@ std::unique_ptr<Driver> detect_driver(const uint8_t* ram, const uint8_t* dsp) {
     if (std::unique_ptr<Driver> d = berlioz::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = slick::detect(ram)) return d;
     if (std::unique_ptr<Driver> d = wolfteam::detect(ram)) return d;
+    if (std::unique_ptr<Driver> d = ozawa::detect(ram)) return d;
     return nullptr;
 }
 

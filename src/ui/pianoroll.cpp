@@ -460,9 +460,11 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
     }
     const int rows = (length + tpr - 1) / tpr;
     const int r0 = std::max(0, int((sx - key_w) / (ppt * tpr)) - 1), r1 = std::min(rows, int((sx - key_w + win_size.x) / (ppt * tpr)) + 2);
+    const float row_px = ppt * tpr;   // zoomed out, a line per row would be a solid wall
     for (int r = r0; r <= r1; ++r) {
         float x = tick_x(float(r * tpr));
         bool hi2 = th.row_hi2 > 0 && r % th.row_hi2 == 0, hi1 = th.row_hi1 > 0 && r % th.row_hi1 == 0;
+        if (row_px * std::max(1, hi2 ? th.row_hi2 : hi1 ? th.row_hi1 : 1) < 4.0f) continue;
         dl->AddLine(ImVec2(x, view_y0), ImVec2(x, semi_y(0) + row_h), th.u32(hi2 ? TC_ROW_INDEX_HI2 : hi1 ? TC_ROW_INDEX_HI1 : TC_ROW_INDEX, hi2 ? 0.7f : hi1 ? 0.45f : 0.2f));
     }
 
@@ -623,8 +625,9 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
     dl->PopClipRect();
     dl->PushClipRect(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), true);
     dl->AddRectFilled(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), th.u32(TC_CHANNEL_HEADER_BG));
+    const int lab_step = ruler_label_step(rows, row_px, cw);
     for (int r = r0; r <= r1; ++r) {
-        if (th.row_hi1 > 0 && r % th.row_hi1) continue;
+        if (r % lab_step) continue;
         float x = tick_x(float(r * tpr));
         char b[16]; std::snprintf(b, sizeof b, th.hex_rows ? "%02X" : "%d", r);
         dl->AddText(ImVec2(x + 2, win.y + 2), th.u32(th.row_hi2 > 0 && r % th.row_hi2 == 0 ? TC_ROW_INDEX_HI2 : TC_ROW_INDEX_HI1), b);

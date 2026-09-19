@@ -199,7 +199,12 @@ void resolve_stream_position(const Pattern& p, const uint16_t ptr[8], const Posi
             int a, b; span(v, i, a, b);
             int n = 0;
             for (int w = 0; w < 8; ++w) if (covers(w, a)) ++n;
-            const bool forward = prev_tick < 0 || a + 2 >= prev_tick;   // continuity: not behind where we were
+            // Continuity: not behind where we were. A candidate is the event
+            // just behind the pointer, so its start can trail the real
+            // position by a whole note; only one that has ended before the
+            // last position is in the past (a repeated phrase's earlier
+            // iteration).
+            const bool forward = prev_tick < 0 || b + 2 >= prev_tick;
             if (n > best_n || (n == best_n && ((forward && !best_forward) || (forward == best_forward && a < best_t)))) { best_t = a; best_n = n; best_forward = forward; }
         }
     if (best_n == 0) return;

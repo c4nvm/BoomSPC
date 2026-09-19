@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(BoomSPC VERSION 0.4.0 LANGUAGES CXX)
+project(BoomSPC VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -71,7 +71,7 @@ set(DRIVER_SOURCES
     src/driver/mint.cpp
     src/driver/compile.cpp
     src/driver/pandora.cpp
-    src/driver/prism.cpp src/driver/graphres.cpp src/driver/ascii.cpp src/driver/falcom.cpp src/driver/heartbeat.cpp src/driver/neverland.cpp src/driver/berlioz.cpp src/driver/slick.cpp src/driver/wolfteam.cpp
+    src/driver/prism.cpp src/driver/graphres.cpp src/driver/ascii.cpp src/driver/falcom.cpp src/driver/heartbeat.cpp src/driver/neverland.cpp src/driver/berlioz.cpp src/driver/slick.cpp src/driver/wolfteam.cpp src/driver/ozawa.cpp
     src/spc700.cpp
 )
 
@@ -121,6 +121,8 @@ add_executable(boomspc
     src/ui/about.cpp
     src/ui/updates_panel.cpp
     src/project.cpp
+    src/paths.cpp
+    src/crash.cpp
 )
 add_dependencies(boomspc boomspc_version)
 target_include_directories(boomspc PRIVATE src third_party/stb)
@@ -128,6 +130,10 @@ if(WIN32)
     target_link_libraries(boomspc PRIVATE SDL2::SDL2main)
 endif()
 target_link_libraries(boomspc PRIVATE imgui snes_spc SDL2::SDL2 ZLIB::ZLIB Threads::Threads)
+if(NOT WIN32 AND NOT APPLE)
+    target_link_options(boomspc PRIVATE -rdynamic)   # function names in crash.log stacks
+    target_link_libraries(boomspc PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 target_compile_options(boomspc PRIVATE -Wall -Wextra)
 # The logo and other assets live next to the executable; copied on every

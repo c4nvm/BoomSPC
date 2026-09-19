@@ -1,5 +1,5 @@
 // spcdump: prints what the N-SPC parser sees in an SPC.
-//   spcdump file.spc [--run SECONDS] [--tracks]
+//   spcdump file.spc [--run SECONDS] [--tracks] [--song N]
 // --run emulates for a while first so live pointers exist (AddmusicK dumps
 // start with an empty zero page).
 #include <cstdio>
@@ -78,13 +78,15 @@ int dump_generic(const seq::Driver& F, const uint8_t* ram, bool tracks) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2) { std::fprintf(stderr, "usage: %s file.spc [--run SECONDS] [--tracks] [--disasm HEXADDR[:COUNT]]\n", argv[0]); return 2; }
+    if (argc < 2) { std::fprintf(stderr, "usage: %s file.spc [--run SECONDS] [--tracks] [--song N] [--disasm HEXADDR[:COUNT]]\n", argv[0]); return 2; }
     double run = 0; bool tracks = false;
     int disasm_at = -1, disasm_n = 32;
+    int song_arg = -1;                 // --song N: dump that song instead of the one the driver is on
     const char* dump_path = nullptr;   // --dumpram PATH: 64K RAM + 128 DSP bytes + PC (2) after --run
     for (int i = 2; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--run") && i + 1 < argc) run = std::atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--tracks")) tracks = true;
+        else if (!std::strcmp(argv[i], "--song") && i + 1 < argc) song_arg = std::atoi(argv[++i]);
         else if (!std::strcmp(argv[i], "--dumpram") && i + 1 < argc) dump_path = argv[++i];
         else if (!std::strcmp(argv[i], "--disasm") && i + 1 < argc) {
             disasm_at = int(std::strtol(argv[++i], nullptr, 16));
@@ -140,7 +142,7 @@ int main(int argc, char** argv) {
                 L.cmd_base, L.len_table, L.inst_table, L.inst_stride, L.perc_table, L.tempo_addr, N->ticks_per_second(ram.data()));
 
     auto songs = nspc::find_songs(ram.data(), L, dsp.data());
-    int cur = nspc::pick_current_song(ram.data(), L, songs);
+    int cur = song_arg >= 0 && song_arg < int(songs.size()) ? song_arg : nspc::pick_current_song(ram.data(), L, songs);
     std::printf("songs found: %zu\n", songs.size());
     for (size_t i = 0; i < songs.size(); ++i) {
         const nspc::Song& s = songs[i];

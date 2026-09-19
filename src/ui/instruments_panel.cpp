@@ -45,7 +45,8 @@ bool instrument_editor(App& app, uint16_t addr, int stride, bool percussion) {
 
     int srcn = bytes[0];
     ImGui::SetNextItemWidth(input_int_w(3));
-    if (ImGui::InputInt("Sample (SRCN)", &srcn)) { bytes[0] = uint8_t(srcn & 0xFF); changed = true; }
+    // Past $7F ends the table scan, which would empty the list under the cursor.
+    if (ImGui::InputInt("Sample (SRCN)", &srcn)) { bytes[0] = uint8_t(std::clamp(srcn, 0, 0x7F)); changed = true; }
     same_line_if_fits("view");
     if (ImGui::SmallButton("view")) { app.sel_sample = bytes[0]; app.show_samples = true; }
 
@@ -85,12 +86,20 @@ bool instrument_editor(App& app, uint16_t addr, int stride, bool percussion) {
     return changed;
 }
 
+// A "None" row: with it selected, entering a note leaves whatever instrument
+// the track already had in force (issue #2).
+void instrument_none_row(App& app) {
+    if (ImGui::Selectable("--  none", app.sel_instrument < 0)) app.sel_instrument = -1;
+    if (ImGui::IsItemHovered()) tooltip_spaced("Notes you enter keep the instrument already in force");
+}
+
 void draw_generic_instruments(App& app) {
     const seq::Driver& D = *app.tracker.drv;
     const Theme& th = theme();
     if (!D.has_instruments()) { ImGui::TextDisabled("This driver has no instrument table."); return; }
     const int count = D.instrument_count(app.snap.ram);
     const bool stacked = list_detail_split("00  smp 00");
+    instrument_none_row(app);
     for (int i = 0; i < count; ++i) {
         if (!D.instrument_used(app.snap.ram, i)) continue;
         seq::Instrument in = D.read_instrument(app.snap.ram, i);
@@ -106,6 +115,7 @@ void draw_generic_instruments(App& app) {
     list_detail_split_next(stacked);
     child_begin("edit");
     int i = app.sel_instrument;
+    if (i < 0) text_wrapped("No instrument selected: notes you enter keep the one already in force.");
     if (i >= 0 && i < count) {
         seq::Instrument in = D.read_instrument(app.snap.ram, i);
         text_wrapped("Instrument %02X", D.instrument_number(app.snap.ram, i));
@@ -162,6 +172,7 @@ void draw_instruments_panel(App& app) {
 
     const Theme& th = theme();
     const bool stacked = list_detail_split("00  smp 00");
+    instrument_none_row(app);
     for (int i = 0; i < total; ++i) {
         char b[48];
         uint16_t addr; int number = i;
@@ -186,6 +197,7 @@ void draw_instruments_panel(App& app) {
     list_detail_split_next(stacked);
     child_begin("edit");
     int i = app.sel_instrument;
+    if (i < 0) text_wrapped("No instrument selected: notes you enter keep the one already in force.");
     if (i >= 0 && i < total) {
         if (i < count) {
             text_wrapped("Instrument %02X  (table $%04X)", i, L.inst_table);

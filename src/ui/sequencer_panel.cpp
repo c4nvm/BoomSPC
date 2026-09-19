@@ -350,7 +350,13 @@ void draw_sequencer_panel(App& app) {
     else app.engine.set_watch(0, 0);
     watch.clear();
     app.engine.take_watch(watch);
-    if (pos.valid) {
+    // While seeking the emulator runs far ahead of the clock in silence, so the
+    // position read out of RAM would send the playhead flying. Park it instead.
+    static bool was_seeking = false;
+    const bool seeking = app.engine.seeking();
+    if (was_seeking && !seeking) ph.sync_tick = -1;   // resync once the seek lands
+    was_seeking = seeking;
+    if (pos.valid && !seeking) {
         const int64_t samples = app.snap.sample_pairs;
         auto observed_of = [](const seq::Position& p) {
             int o = -1;

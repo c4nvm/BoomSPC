@@ -46,8 +46,10 @@ void draw_player_panel(App& app) {
     const float pad = ImGui::GetStyle().FramePadding.x * 2;
     const float play_w = std::max(ImGui::CalcTextSize("Pause").x, ImGui::CalcTextSize("Play").x) + pad;
     if (ImGui::Button(eng.playing() || eng.seeking() ? "Pause" : "Play", ImVec2(play_w, 0))) eng.toggle();
+    if (ImGui::IsItemHovered()) tooltip_spaced("Play / pause (%s)", action_shortcut(A_PLAY_TOGGLE));
     same_line_if_fits("Restart");
     if (ImGui::Button("Restart")) eng.restart();
+    if (ImGui::IsItemHovered()) tooltip_spaced("Back to the start of the rip and play (%s)", action_shortcut(A_PLAY_START));
     same_line_if_fits(ImGui::CalcTextSize("0:00.00 / 0:00.00").x);
     {
         char pos[32], tot[32];
