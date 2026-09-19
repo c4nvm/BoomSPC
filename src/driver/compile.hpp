@@ -14,6 +14,8 @@
 //   AD n addr   count down, jump when 0
 //   9A addr     call (one level)   9B  return
 //   89 t  transpose (relative)   96 t  tempo   97  tuning   A0 i  instrument
+//   91 f  OR into the global flags   92 m  voice mode bits (m & 3)
+//   9D s  signed extra step for the note timer   99  toggles that step
 // A quarter note is 12 ticks; ticks run at tempo * 60 / 256 per second.
 #pragma once
 

@@ -40,19 +40,19 @@ const CmdSpec kCmds[0x30] = {
     {2, "???", "Unknown", FxClass::Misc},                                 // 8E
     {2, "???", "Unknown", FxClass::Misc},                                 // 8F
     {2, "Flg", "Flags", FxClass::Sys2},                                   // 90
-    {2, "???", "Unknown", FxClass::Misc},                                 // 91
-    {2, "???", "Unknown", FxClass::Misc},                                 // 92
+    {2, "Flg", "Global flags OR n (zero page $00)", FxClass::Misc},        // 91
+    {2, "VMd", "Voice mode bits (n & 3, when the global mode allows)", FxClass::Misc},   // 92
     {3, "???", "Unknown", FxClass::Misc},                                 // 93
     {2, "???", "Unknown", FxClass::Misc},                                 // 94
     {1, "???", "Unknown", FxClass::Misc},                                 // 95
     {2, "Tmp", "Tempo", FxClass::Speed},                                  // 96
     {2, "Tun", "Tuning", FxClass::Pitch},                                 // 97
     {2, "???", "Unknown", FxClass::Misc},                                 // 98
-    {1, "???", "Unknown", FxClass::Misc},                                 // 99
+    {1, "TSt", "Toggle the note-timer step (voice flag bit 4)", FxClass::Time},   // 99
     {3, "Cal", "Call subroutine", FxClass::Song, 1, true},                // 9A
     {1, "Ret", "Return", FxClass::Song},                                  // 9B
     {1, "???", "Unknown", FxClass::Misc},                                 // 9C
-    {2, "???", "Unknown", FxClass::Misc},                                 // 9D
+    {2, "Stp", "Note timer step: signed extra ticks counted per tick", FxClass::Time},   // 9D
     {1, "???", "Unknown", FxClass::Misc},                                 // 9E
     {2, "ADS", "ADSR envelope", FxClass::Sys2},                           // 9F
     {2, "Ins", "Instrument", FxClass::Instrument},                        // A0
