@@ -8,7 +8,8 @@
 // chord. Masked commands carry one value per set bit.
 //
 //   00 n        note length in ticks
-//   01 m        DSP voice mask this track drives
+//   01 m        DSP voice mask this track drives (bit 7 = voice 0: masks
+//               are walked MSB first, values run in voice order)
 //   02 lo hi    call
 //   03          return, or end of track outside a call
 //   04 n        length multiplier (a note lasts 00's value * this)

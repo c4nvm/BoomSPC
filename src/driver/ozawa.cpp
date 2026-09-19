@@ -43,6 +43,7 @@ const CmdSpec kBlock = {0, "Blk", "Parameter block", FxClass::Misc};
 const CmdSpec kNop = {1, "Nop", "(no effect)", FxClass::Misc};
 
 int popcount8(uint8_t m) { int n = 0; for (int i = 0; i < 8; ++i) if (m & (1 << i)) ++n; return n; }
+int voice_bit(int v) { return 0x80 >> (v & 7); }   // the driver walks masks MSB first: bit 7 = voice 0
 
 // Bytes an event occupies, given the byte at p[0] and its mask operand.
 int event_size(const uint8_t* p) {
@@ -174,8 +175,8 @@ std::array<int8_t, 8> owners_of(const uint8_t* ram, const Layout& L, const std::
     std::array<int8_t, 8> o;
     for (int v = 0; v < 8; ++v) {
         o[size_t(v)] = -1;
-        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (first[t] & (1 << v))) o[size_t(v)] = int8_t(t);
-        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (all[t] & (1 << v))) o[size_t(v)] = int8_t(t);
+        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (first[t] & voice_bit(v))) o[size_t(v)] = int8_t(t);
+        for (int t = 0; t < 4 && o[size_t(v)] < 0; ++t) if (g[size_t(t)] && (all[t] & voice_bit(v))) o[size_t(v)] = int8_t(t);
     }
     return o;
 }
@@ -252,10 +253,11 @@ uint16_t OzawaDriver::track_start(const uint8_t* ram, uint16_t header, int v) co
 }
 
 // Index of DSP voice v's value inside a 09's operands, -1 when the mask
-// leaves the voice alone.
+// leaves the voice alone. Masks are consumed MSB first, so bit 7 is voice
+// 0 and the values run in voice order.
 static int value_index(const uint8_t* p, int v) {
-    if (v < 0 || !(p[1] & (1 << v))) return -1;
-    return 2 + popcount8(uint8_t(p[1] & ((1 << v) - 1)));
+    if (v < 0 || !(p[1] & voice_bit(v))) return -1;
+    return 2 + popcount8(uint8_t(p[1] & ~(voice_bit(v) * 2 - 1)));
 }
 
 // State: len = note length, x[0] = length multiplier, x[1] = voice mask.
@@ -320,14 +322,14 @@ bool OzawaDriver::transpose_event(Event& e, int semis) const {
 void OzawaDriver::apply_note_byte(Event& e, uint8_t byte) const {
     const int v = e.b[15] & 0x80 ? e.b[15] & 7 : 0;
     if (e.b[0] == 0x0E) {
-        e.b[0] = 0x09; e.b[1] = uint8_t(1 << v); e.b[2] = byte; e.size = 3;
+        e.b[0] = 0x09; e.b[1] = uint8_t(voice_bit(v)); e.b[2] = byte; e.size = 3;
     } else if (e.b[0] == 0x09) {
         int k = value_index(e.b, v);
         if (k < 0) {
-            k = 2 + popcount8(uint8_t(e.b[1] & ((1 << v) - 1)));
+            k = 2 + popcount8(uint8_t(e.b[1] & ~(voice_bit(v) * 2 - 1)));
             if (e.size >= 15) return;
             for (int i = e.size; i > k; --i) e.b[i] = e.b[i - 1];
-            e.b[1] |= uint8_t(1 << v);
+            e.b[1] |= uint8_t(voice_bit(v));
             ++e.size;
         }
         e.b[k] = byte;
@@ -350,7 +352,7 @@ std::string OzawaDriver::event_text(const Event& e) const {
     if (e.b[0] == 0x09) {
         std::string s = "note";
         for (int v = 0, k = 2; v < 8; ++v) {
-            if (!(e.b[1] & (1 << v))) continue;
+            if (!(e.b[1] & voice_bit(v))) continue;
             const uint8_t val = e.b[k++];
             if (val < 0x54) std::snprintf(b, sizeof b, " %d:%s", v, note_name(val).c_str());
             else if (val == 0x54) std::snprintf(b, sizeof b, " %d:retrig", v);
