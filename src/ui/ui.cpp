@@ -451,8 +451,9 @@ void run_action(App& app, int action) {
         case A_SAVE_PROJECT_AS: app.dialog_save_project(true); break;
         case A_EXPORT_SPC:  app.dialog_export_spc(); break;
         case A_EXPORT_WAV:  if (eng.loaded()) app.export_wav_open = true; break;
-        case A_UNDO:        if (eng.can_undo()) { eng.undo(); app.after_edit(); app.status = "undo"; } break;
-        case A_REDO:        if (eng.can_redo()) { eng.redo(); app.after_edit(); app.status = "redo"; } break;
+        // Bytes a rewrite left for a voice to finish reading are in use again after an undo.
+        case A_UNDO:        if (eng.can_undo()) { eng.undo(); app.tracker.pending_release.clear(); app.after_edit(); app.status = "undo"; } break;
+        case A_REDO:        if (eng.can_redo()) { eng.redo(); app.tracker.pending_release.clear(); app.after_edit(); app.status = "redo"; } break;
         case A_QUIT: { SDL_Event quit{}; quit.type = SDL_QUIT; SDL_PushEvent(&quit); break; }
         case A_OCTAVE_UP:   app.octave = std::min(6, app.octave + 1); break;
         case A_OCTAVE_DOWN: app.octave = std::max(1, app.octave - 1); break;
