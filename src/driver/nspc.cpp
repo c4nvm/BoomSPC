@@ -443,6 +443,7 @@ struct Parser {
     const Layout&  L;
     Track&         out;
     int            cur_len = 0;
+    bool           after_length = false;   // the last event was a length group
     int            tick = 0;
     int            bytes_seen = 0;
     bool           intelli_params = false;   // FE3: F5 switched the note parameters to the multi-byte form
@@ -474,9 +475,21 @@ struct Parser {
                 }
                 return int(p & 0xFFFF);
             }
+            if (b < 0x80 && after_length) {
+                // The driver reads one length, one optional qv, then a note or
+                // command, whatever the byte is: a second length group here
+                // plays as a note of pitch (b - $80), which is garbage.
+                after_length = false;
+                e.type = EventType::Note; e.size = 1; e.duration = cur_len;
+                p += 1; bytes_seen += 1;
+                if (!push(e)) return -1;
+                continue;
+            }
+            after_length = false;
             if (b < 0x80) {
                 e.type = EventType::Length; e.size = 1;
                 cur_len = b;
+                after_length = true;
                 const bool multi = L.profile == Profile::IntelliTa || L.profile == Profile::IntelliFe4 || (L.profile == Profile::IntelliFe3 && intelli_params);
                 const int max_params = multi ? 14 : L.profile == Profile::Lemmings ? 2 : 1;
                 for (int k = 0; k < max_params; ++k) {
@@ -970,12 +983,28 @@ int note_semitone(const Layout& L, uint8_t note_byte) {
     return note_byte >= 0x80 ? note_byte - 0x80 : -1;
 }
 
+// Two length groups in a row would make the driver play the second as a
+// note; they collapse to one (last length, last qv seen).
 std::vector<uint8_t> serialize_track(const std::vector<Event>& events) {
     std::vector<uint8_t> out;
+    int pending_len = -1, pending_qv = -1;
+    auto flush = [&] {
+        if (pending_len < 0) return;
+        out.push_back(uint8_t(pending_len));
+        if (pending_qv >= 0) out.push_back(uint8_t(pending_qv));
+        pending_len = pending_qv = -1;
+    };
     for (const Event& e : events) {
         if (e.in_sub) continue;
+        if (e.type == EventType::Length && e.size <= 2) {
+            pending_len = e.b[0];
+            if (e.size == 2) pending_qv = e.b[1];
+            continue;
+        }
+        flush();
         for (int i = 0; i < e.size; ++i) out.push_back(e.b[i]);
     }
+    flush();
     if (out.empty() || out.back() != 0) out.push_back(0);
     return out;
 }

@@ -117,7 +117,7 @@ public:
     bool    is_note_byte(uint8_t b) const override { return b >= 0x80 && b < L.tie; }
     bool    is_percussion(uint8_t b) const override { return L.perc_base && b >= L.perc_base && b <= L.perc_end; }
     int     percussion_index(uint8_t b) const override { return b - L.perc_base; }
-    int     note_semitone(uint8_t b) const override { return nspc::note_semitone(L, b) + 12; }
+    int     note_semitone(uint8_t b) const override { const int s = nspc::note_semitone(L, b); return s < 0 ? -1 : s + 12; }   // -1: a length byte the driver plays as a note
     uint8_t note_byte(int semitone_from_c0) const override;
     uint8_t note_min() const override { return 0x80; }
     uint8_t note_max() const override { return uint8_t(L.tie - 1); }
