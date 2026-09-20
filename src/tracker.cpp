@@ -58,9 +58,21 @@ void Tracker::update(const EngineSnapshot& s, double now, bool repick) {
         --rescans_left;
         next_rescan = now + 0.75;
         int keep = rescans_left;
+        const bool pinned = song_pinned;
+        const uint16_t pinned_addr = song() ? song()->order_addr : 0;
         analyze(s);
+        if (pinned) pin_song(s, pinned_addr);
         if (!pos.valid) rescans_left = keep;
     }
+}
+
+void Tracker::pin_song(const EngineSnapshot& s, uint16_t order_addr) {
+    for (size_t i = 0; i < songs.size(); ++i)
+        if (songs[i].order_addr == order_addr) {
+            if (int(i) != song_index) { song_index = int(i); pos = drv ? drv->locate(s.ram, songs[i], nullptr) : seq::Position{}; }
+            song_pinned = true;
+            return;
+        }
 }
 
 void Tracker::reparse(const EngineSnapshot& s) {

@@ -41,6 +41,8 @@ struct Tracker {
     void update(const EngineSnapshot& s, double now, bool repick = true);
     // Re-parses the current song after RAM edits.
     void reparse(const EngineSnapshot& s);
+    // Keeps the song at `order_addr` selected (a restart boots the rip's own song; the user's stays).
+    void pin_song(const EngineSnapshot& s, uint16_t order_addr);
 
     const seq::Song* song() const { return song_index >= 0 && song_index < int(songs.size()) ? &songs[song_index] : nullptr; }
     seq::Song*       song()       { return song_index >= 0 && song_index < int(songs.size()) ? &songs[song_index] : nullptr; }
