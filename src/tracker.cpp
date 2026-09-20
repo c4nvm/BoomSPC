@@ -160,7 +160,7 @@ std::vector<bool> Tracker::song_map(int song, bool parsed_only) const {
                 if (!t.addr || (parsed_only && t.truncated)) continue;
                 for (const Event& e : t.events)
                     for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
-                used[t.end_addr] = true;
+                if (!t.terminated) used[t.end_addr] = true;
             }
         }
     }
@@ -184,7 +184,7 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
                 if (!t.addr) continue;
                 for (const Event& e : t.events)
                     for (int k = 0; k < e.size; ++k) mark(e.addr + k);
-                mark(t.end_addr);
+                if (!t.terminated) mark(t.end_addr);
             }
         }
     }
@@ -542,7 +542,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         relocated = true;
     } else {
         int avail = int(t.end_addr) - int(t.addr);
-        if (int(bytes.size()) > avail) {
+        if (int(bytes.size()) > avail && !bytes_free(snap, t.end_addr, int(bytes.size()) - avail)) {   // grows into the free bytes after it if it can
             bool reclaimed = false;
             int run = 0;
             int at = find_space_or_reclaim(snap, int(bytes.size()), reclaimed, &run);
