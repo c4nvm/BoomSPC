@@ -533,7 +533,7 @@ void Engine::write_ram(uint16_t addr, const uint8_t* data, size_t n, WriteTarget
     dirty_ = true;
 }
 
-void Engine::begin_edit() { ++edit_depth_; undo_open_ = false; }
+void Engine::begin_edit() { if (edit_depth_++ == 0) undo_open_ = false; }
 void Engine::end_edit() { if (edit_depth_ > 0) --edit_depth_; if (edit_depth_ == 0) undo_open_ = false; }
 
 void Engine::apply_locked(const Patch& p, bool forward) {
@@ -556,6 +556,15 @@ bool Engine::undo() {
     redo_stack_.push_back(std::move(u));
     undo_open_ = false;
     return true;
+}
+
+void Engine::revert_edit() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    if (undo_stack_.empty()) return;
+    UndoEntry u = std::move(undo_stack_.back());
+    undo_stack_.pop_back();
+    for (auto it = u.patches.rbegin(); it != u.patches.rend(); ++it) apply_locked(*it, false);
+    undo_open_ = false;
 }
 
 bool Engine::redo() {

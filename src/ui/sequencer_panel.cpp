@@ -831,11 +831,29 @@ void draw_sequencer_panel(App& app) {
     ImGui::PopFont();
 
     bool edited = false;
+    // A block edit writes voice by voice; if one voice cannot be written the
+    // voices already done are undone, so the block is all or nothing.
+    int block_depth = 0, block_written = 0;
+    std::string block_fail;
     auto commit = [&](int voice, std::vector<Event>& ev) {
+        if (!block_fail.empty()) return false;
         Tracker::Result r = T.write_track(app.engine, pat_idx, voice, ev);
         app.status = r.msg;
         edited = true;
+        if (r.ok) ++block_written;
+        else if (block_depth > 0) block_fail = "voice " + std::to_string(voice + 1) + ": " + r.msg;
         return r.ok;
+    };
+    auto begin_block = [&]() {
+        if (block_depth++ == 0) { block_written = 0; block_fail.clear(); }
+        app.engine.begin_edit();
+    };
+    auto end_block = [&]() {
+        app.engine.end_edit();
+        if (--block_depth > 0 || block_fail.empty()) return;
+        if (block_written > 0) { app.engine.revert_edit(); T.pending_release.clear(); app.after_edit(); block_fail += " (the block was left as it was)"; }
+        app.status = block_fail;
+        block_fail.clear();
     };
     auto track_events = [&](int v) { return editable_events(T.song()->patterns[size_t(pat_idx)].tracks[v]); };
     auto cells_of = [&](int v) -> const std::vector<Cell>& { return cells[v]; };
@@ -857,7 +875,7 @@ void draw_sequencer_panel(App& app) {
 
     auto set_note_block = [&](uint8_t byte) {
         Block b = block();
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!block_has(b, v, App::F_NOTE) || !has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -869,12 +887,12 @@ void draw_sequencer_panel(App& app) {
                 }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto transpose_block = [&](int semis) {
         Block b = block();
         if (!app.sel_active) b.c0 = b.c1 = app.sel_voice * F_COUNT + App::F_NOTE;
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!block_has(b, v, App::F_NOTE) || !has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -886,11 +904,11 @@ void draw_sequencer_panel(App& app) {
                 }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto value_block = [&](int delta) {
         Block b = block();
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -924,11 +942,11 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto delete_block = [&]() {
         Block b = block();
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -956,7 +974,7 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto copy_block = [&](bool cut) {
         Block b = block();
@@ -982,7 +1000,7 @@ void draw_sequencer_panel(App& app) {
     };
     auto paste_block = [&](bool mix) {
         if (g_clip.voices <= 0) return;
-        app.engine.begin_edit();
+        begin_block();
         for (int cv = 0; cv < g_clip.voices; ++cv) {
             int v = app.sel_voice + cv;
             if (v > 7) break;
@@ -1013,12 +1031,12 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto interpolate_block = [&]() {
         Block b = block();
         if (b.r1 - b.r0 < 2) { app.status = "select at least three rows to interpolate"; return; }
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -1055,11 +1073,11 @@ void draw_sequencer_panel(App& app) {
             lerp_field(App::F_FXARG, get_arg, set_arg);
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto transform_values = [&](auto fn) {
         Block b = block();
-        app.engine.begin_edit();
+        begin_block();
         const int n = b.r1 - b.r0 + 1;
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
@@ -1094,7 +1112,7 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto remap_rows = [&](auto map) {
         Block b = block();
@@ -1112,7 +1130,7 @@ void draw_sequencer_panel(App& app) {
                     cc.fx_size = t.events[size_t(c.fx_ev)].size; std::memcpy(cc.fx, t.events[size_t(c.fx_ev)].b, sizeof cc.fx);
                 }
             }
-        app.engine.begin_edit();
+        begin_block();
         delete_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
@@ -1131,7 +1149,7 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto paste_flood = [&]() {
         if (g_clip.voices <= 0 || g_clip.rows <= 0) return;
@@ -1139,10 +1157,10 @@ void draw_sequencer_panel(App& app) {
         const int start_row = app.sel_active ? std::min(app.sel_r0, app.sel_r1) : app.sel_row;
         const int start_voice = app.sel_active ? std::min(app.sel_v0, app.sel_v1) : app.sel_voice;
         const int keep_row = app.sel_row, keep_voice = app.sel_voice;
-        app.engine.begin_edit();
+        begin_block();
         app.sel_voice = start_voice;
         for (int r = start_row; r <= last; r += g_clip.rows) { app.sel_row = r; paste_block(false); }
-        app.engine.end_edit();
+        end_block();
         app.sel_row = keep_row; app.sel_voice = keep_voice;
     };
     auto current_instrument = [&]() -> int {
@@ -1154,7 +1172,7 @@ void draw_sequencer_panel(App& app) {
         int ins = current_instrument();
         if (ins < 0) { app.status = "no instrument selected in the Instruments panel"; return; }
         Block b = block();
-        app.engine.begin_edit();
+        begin_block();
         for (int v = b.v0; v <= b.v1; ++v) {
             if (!has_track(v)) continue;
             std::vector<Event> ev = track_events(v);
@@ -1167,7 +1185,7 @@ void draw_sequencer_panel(App& app) {
             }
             if (any) commit(v, ev);
         }
-        app.engine.end_edit();
+        end_block();
     };
     auto pull_delete = [&]() {
         if (!has_track(app.sel_voice)) return;

@@ -160,6 +160,8 @@ public:
     void end_edit();
     bool undo();
     bool redo();
+    // Undoes the last step and forgets it (a block that could not be finished).
+    void revert_edit();
     bool can_undo() const { return !undo_stack_.empty(); }
     bool can_redo() const { return !redo_stack_.empty(); }
     bool dirty() const { return dirty_; }
