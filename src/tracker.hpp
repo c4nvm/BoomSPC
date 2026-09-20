@@ -84,5 +84,12 @@ struct Tracker {
     struct FreeStats { int total = 0, largest = 0, total_reclaim = 0, largest_reclaim = 0; };
     FreeStats free_stats(const EngineSnapshot& s) const;
     std::vector<bool> free_map(const EngineSnapshot& s, uint8_t fill) const;
+    // Bytes no edit may touch: driver, echo buffer, sample directory, samples.
+    std::vector<bool> hard_map(const EngineSnapshot& s) const;
+    // Every byte the parsed songs use (one song, or all with -1); parsed_only leaves out truncated tracks.
+    std::vector<bool> song_map(int song = -1, bool parsed_only = false) const;
+    // Bytes of the other songs that [at, at+len) overlaps (empty if none).
+    std::vector<bool> songs_hit(uint16_t at, int len) const;
+    void sweep_dead_songs(const EngineSnapshot& s, Engine& eng, const std::vector<bool>& victims, uint16_t at, int len);
     bool bytes_free(const EngineSnapshot& s, int from, int len) const;
 };

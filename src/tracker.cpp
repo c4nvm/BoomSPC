@@ -95,7 +95,7 @@ void Tracker::remove_event(const seq::Driver& d, std::vector<Event>& ev, int ind
     d.retime(ev);
 }
 
-std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const {
+std::vector<bool> Tracker::hard_map(const EngineSnapshot& s) const {
     std::vector<bool> reserved(0x10000, false);
     int driver_end = 0x200;
     for (const seq::Song& sg : songs) driver_end = std::max(driver_end, int(sg.order_addr));
@@ -145,7 +145,33 @@ std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const
             a = b;
         }
     }
-    const std::vector<bool> hard = reserved;   // driver, echo, directory, samples: never handed out, even as another song's bytes
+    return reserved;
+}
+
+std::vector<bool> Tracker::song_map(int song, bool parsed_only) const {
+    std::vector<bool> used(0x10000, false);
+    for (size_t si = 0; si < songs.size(); ++si) {
+        if (song >= 0 && int(si) != song) continue;
+        const seq::Song& sg = songs[si];
+        for (int a = sg.order_addr; a < sg.order_end; ++a) used[a & 0xFFFF] = true;
+        for (const seq::Pattern& p : sg.patterns) {
+            for (int a = p.addr; a < p.addr + 16; ++a) used[a & 0xFFFF] = true;
+            for (const seq::Track& t : p.tracks) {
+                if (!t.addr || (parsed_only && t.truncated)) continue;
+                for (const Event& e : t.events)
+                    for (int k = 0; k < e.size; ++k) used[(e.addr + k) & 0xFFFF] = true;
+                used[t.end_addr] = true;
+            }
+        }
+    }
+    return used;
+}
+
+std::vector<bool> Tracker::free_map(const EngineSnapshot& s, uint8_t fill) const {
+    const std::vector<bool> hard = hard_map(s);   // driver, echo, directory, samples: never handed out, even as another song's bytes
+    std::vector<bool> reserved = hard;
+    int lo = 0x200, hi = 0x10000;
+    if (drv) drv->free_space_bounds(lo, hi);
     std::vector<bool> reclaimable(0x10000, false);
     for (size_t si = 0; si < songs.size(); ++si) {
         const seq::Song& sg = songs[si];
@@ -333,6 +359,34 @@ void Tracker::release_bytes(const EngineSnapshot& s, Engine& eng, uint16_t at, i
     if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "release_bytes %04X+%d: zeroed %d\n", at, len, zeroed);
 }
 
+std::vector<bool> Tracker::songs_hit(uint16_t at, int len) const {
+    std::vector<bool> hit;
+    for (size_t si = 0; si < songs.size(); ++si) {
+        if (int(si) == song_index) continue;
+        std::vector<bool> m = song_map(int(si), true);   // a truncated track walked bytes that are not the song's
+        bool overlap = false;
+        for (int a = at; a < at + len && a < 0x10000 && !overlap; ++a) overlap = m[size_t(a)];
+        if (!overlap) continue;
+        if (hit.empty()) hit = std::move(m);
+        else for (int a = 0; a < 0x10000; ++a) if (m[size_t(a)]) hit[size_t(a)] = true;
+    }
+    return hit;
+}
+
+// A block written over another song leaves the rest of that song unreadable
+// (reserved by nothing, but not zero either, so never handed out); zero it.
+void Tracker::sweep_dead_songs(const EngineSnapshot& s, Engine& eng, const std::vector<bool>& victims, uint16_t at, int len) {
+    if (victims.empty()) return;
+    const std::vector<bool> used = song_map(), hard = hard_map(s);
+    const uint8_t zero = 0;
+    int zeroed = 0;
+    for (int a = 0; a < 0x10000; ++a) {
+        if (!victims[size_t(a)] || used[size_t(a)] || hard[size_t(a)] || (a >= at && a < at + len) || s.ram[a] == 0) continue;
+        eng.write_ram(uint16_t(a), &zero, 1); ++zeroed;
+    }
+    if (std::getenv("BOOMSPC_DEBUG_FREE")) std::fprintf(stderr, "sweep_dead_songs: zeroed %d\n", zeroed);
+}
+
 Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, std::vector<Event> events) {
     Result r;
     seq::Song* sg = song();
@@ -380,6 +434,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         seq::Position live = restructure ? drv->locate(snap.ram, *sg, &pos) : seq::Position{};
         seq::Position image = restructure ? drv->locate(eng.image_ram(), *sg, nullptr) : seq::Position{};
         const char* moved_note = " (playing it)";
+        const std::vector<bool> victims = relocated ? songs_hit(dest, int(bytes.size())) : std::vector<bool>{};
         eng.begin_edit();
         for (const Event& e : events) {
             if (e.size == 0 || e.addr == 0) continue;
@@ -455,6 +510,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
             }
             ++written;
         }
+        if (!victims.empty()) { eng.snapshot(snap); reparse(snap); sweep_dead_songs(snap, eng, victims, dest, int(bytes.size())); }
         eng.end_edit();
         eng.snapshot(snap);
         reparse(snap);
@@ -522,6 +578,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         }
     }
 
+    const std::vector<bool> victims = relocated ? songs_hit(dest, int(bytes.size())) : std::vector<bool>{};
     eng.begin_edit();
     eng.write_ram(dest, bytes.data(), bytes.size());
     if (relocated) {
@@ -542,6 +599,7 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
             else release_bytes(snap, eng, lo, hi - lo, &t);
         }
     }
+    if (!victims.empty()) { eng.snapshot(snap); reparse(snap); sweep_dead_songs(snap, eng, victims, dest, int(bytes.size())); }
     eng.end_edit();
 
     eng.snapshot(snap);
