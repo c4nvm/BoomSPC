@@ -1,5 +1,7 @@
 # Bundled font manifest: file | display name | minimum size in px (0 = any).
-# Fonts not listed here are offered under their file name at any size.
+# Fonts not listed here are offered under their file name at any size: drop a
+# .ttf / .otf in this folder and rebuild. Pixel fonts are crispest at multiples
+# of 8 px; colour fonts render only their outline layer, so none are bundled.
 plok-small-font.otf | Plok! Small | 0
 plok-big-font.otf | Plok! Big (uppercase, large sizes) | 24
 mega-man-x.otf | Mega Man X | 0

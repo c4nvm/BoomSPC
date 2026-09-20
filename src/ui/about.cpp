@@ -60,6 +60,9 @@ void logo_paint() {
         }
 }
 
+// assets/logo.png: grey pixels are quantised to four tones and painted with
+// the palette (dark to light), pure red takes the secondary colour, anything
+// else is shown as it is.
 bool try_load(SDL_Renderer* r, SDL_Window* w, const std::string& path) {
     int x, y, n;
     unsigned char* px = stbi_load(path.c_str(), &x, &y, &n, 4);
