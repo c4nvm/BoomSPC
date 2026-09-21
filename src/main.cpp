@@ -217,6 +217,18 @@ int main(int argc, char** argv) {
         }
         if (SDL_TICKS_PASSED(SDL_GetTicks(), next_autosave)) { next_autosave = SDL_GetTicks() + 2000; autosave(); }
 
+        // This bit of code should fix the scaling issues on MacOS!
+        int win_w, win_h;
+        int render_w, render_h;
+        SDL_GetWindowSize(window, &win_w, &win_h);
+        SDL_GetRendererOutputSize(renderer, &render_w, &render_h);
+
+        if (win_w > 0 && win_h > 0) {
+            float scale_x = static_cast<float>(render_w) / static_cast<float>(win_w);
+            float scale_y = static_cast<float>(render_h) / static_cast<float>(win_h);
+            SDL_RenderSetScale(renderer, scale_x, scale_y);
+        }
+        
         fonts_begin_frame();
         ImGui_ImplSDLRenderer2_NewFrame();
         ImGui_ImplSDL2_NewFrame();
