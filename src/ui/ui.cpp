@@ -703,9 +703,6 @@ void ui_draw(App& app) {
             if (ImGui::MenuItem("Save project", sc(A_SAVE_PROJECT), false, app.engine.loaded())) run_action(app, A_SAVE_PROJECT);
             if (ImGui::MenuItem("Save project as...", sc(A_SAVE_PROJECT_AS), false, app.engine.loaded())) run_action(app, A_SAVE_PROJECT_AS);
             ImGui::Separator();
-            if (ImGui::MenuItem("Undo", sc(A_UNDO), false, app.engine.can_undo())) run_action(app, A_UNDO);
-            if (ImGui::MenuItem("Redo", sc(A_REDO), false, app.engine.can_redo())) run_action(app, A_REDO);
-            ImGui::Separator();
             if (ImGui::MenuItem("Export SPC...", sc(A_EXPORT_SPC), false, app.engine.loaded())) run_action(app, A_EXPORT_SPC);
             if (ImGui::MenuItem("Export WAV...", sc(A_EXPORT_WAV), false, app.engine.loaded())) run_action(app, A_EXPORT_WAV);
             ImGui::Separator();
@@ -725,6 +722,9 @@ void ui_draw(App& app) {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edit")) {
+            if (ImGui::MenuItem("Undo", sc(A_UNDO), false, app.engine.can_undo())) run_action(app, A_UNDO);
+            if (ImGui::MenuItem("Redo", sc(A_REDO), false, app.engine.can_redo())) run_action(app, A_REDO);
+            ImGui::Separator();
             ImGui::MenuItem("Edit mode", sc(A_EDIT_TOGGLE), &app.edit_mode);
             ImGui::MenuItem("Follow playback", sc(A_FOLLOW_TOGGLE), &app.follow);
             ImGui::MenuItem("Metronome", sc(A_METRONOME_TOGGLE), &app.metronome);
