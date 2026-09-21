@@ -22,8 +22,6 @@ const ActionDef kDefs[A_COUNT] = {
     {"SAVE_PROJECT_AS","Save project as...",             "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_S, MOD_CTRL | MOD_SHIFT)), false},
     {"EXPORT_SPC",     "Export SPC...",                  "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_E, MOD_CTRL)), false},
     {"EXPORT_WAV",     "Export WAV...",                  "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_E, MOD_CTRL | MOD_SHIFT)), false},
-    {"UNDO",           "Undo",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Z, MOD_CTRL)), true},
-    {"REDO",           "Redo",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Y, MOD_CTRL), K(ImGuiKey_Z, MOD_CTRL | MOD_SHIFT)), true},
     {"QUIT",           "Quit",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Q, MOD_CTRL)), false},
 
     {"OCTAVE_UP",      "Octave up",                      "Entry",     SCOPE_GLOBAL,  B(K(ImGuiKey_KeypadMultiply), K(ImGuiKey_RightBracket)), false},
@@ -68,6 +66,8 @@ const ActionDef kDefs[A_COUNT] = {
     {"SEL_ALL",        "Select all (column, then pattern)","Selection",SCOPE_PATTERN, B(K(ImGuiKey_A, MOD_CTRL)), false},
     {"SEL_CLEAR",      "Clear selection",                "Selection", SCOPE_PATTERN, B(K(ImGuiKey_Escape)), false},
 
+    {"UNDO",           "Undo",                           "Edit",      SCOPE_GLOBAL,  B(K(ImGuiKey_Z, MOD_CTRL)), true},
+    {"REDO",           "Redo",                           "Edit",      SCOPE_GLOBAL,  B(K(ImGuiKey_Y, MOD_CTRL), K(ImGuiKey_Z, MOD_CTRL | MOD_SHIFT)), true},
     {"NOTE_OFF",       "Note off (rest)",                "Edit",      SCOPE_PATTERN, B(K(ImGuiKey_GraveAccent), K(ImGuiKey_CapsLock)), false},
     {"NOTE_TIE",       "Tie (hold previous note)",       "Edit",      SCOPE_PATTERN, B(K(ImGuiKey_1), K(ImGuiKey_Equal)), false},
     {"DELETE",         "Delete field / selection",       "Edit",      SCOPE_PATTERN, B(K(ImGuiKey_Delete)), false},
