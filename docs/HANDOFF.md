@@ -1,7 +1,75 @@
-# Handoff, 2026-09-20
+# Handoff, 2026-09-21
 
-Where things stand after the 2026-09-20 session. Durable findings belong
+Where things stand after the 2026-09-21 session. Durable findings belong
 in ROADMAP.md; this file is the state of play and the next moves.
+
+## Done this session (six commits, in order)
+
+1. **N-SPC: a track inside its own pattern header is not a pattern.**
+   Inindo keeps a second song table right before the Villages header;
+   each entry points four bytes before a real pattern table, so the words
+   there read as a pattern whose voice 0 starts inside the table and the
+   run glued into one twelve-order song with every voice shifted two
+   columns. That was calb's "main melody visually gone" and "Restart
+   jumps me to another song". Sweep of all 1510 N-SPC rips: 64 rips
+   locate a different song (all jingles that used to land in composites,
+   SMW "Egg is Rescued", Castlevania IV "Game Over", ...), 12 gain a
+   valid position, 1 loses one (Lemmings "Staff Roll": its song sits under
+   a stale sample directory entry, see below). parsecheck on the 64: 46 OK
+   vs 39 before.
+2. `spcdump --pattern HEXADDR` parses one table whether the scan found it
+   or not.
+3. Headless `export out.spc` script command (writes the edited image).
+4. **No instrument is selected until the user picks one.** `sel_instrument`
+   defaulted to 0, so the first typed note on a fresh load wrote
+   instrument 00 over the track's; on Beethoven's Title Screen that entry
+   is empty and the voice went silent. Resets to none on every load.
+5. **N-SPC: a rewritten track keeps the voice reading it in place.**
+   `nspc::serialize_track` reports offsets; `write_track` remaps the live
+   and the image voice pointer to the same event boundary in the new
+   bytes (a pointer inside a copied-out subroutine body is matched by
+   tick). Before, N-SPC never moved pointers: fine live (the pattern
+   restarts within a pass) but the image kept pointing into the old
+   bytes, so a rip dumped mid-pattern replayed the old bytes on every
+   restart and play-from-cursor. That was calb's "row 0 of Title Screen
+   stays on C": Beethoven's Title Screen is dumped at tick 0 of the
+   melody's 4x subroutine. Remaining limit: the note the dump already
+   keyed on still sounds as dumped for its length, so the very first row
+   is heard edited only from the second pass.
+6. **The played song is searched for under stale sample entries.** The
+   scan skips bytes the DSP directory claims; Lemmings' Staff Roll sits at
+   B000 under sample 27 (its song bank was loaded over old samples). When
+   no found song has both the voice pointers and the order pointer, the
+   reserved bytes are scanned too and a song there counts only with both.
+   Rescues Lemmings, Star Fox 115/118, Super Oozumou 09; nothing else
+   changes (a weaker test picked up garbage under Super Batter Up and
+   SMW's Nintendo Logo, hence both pointers).
+
+## Open
+
+- calb's two SMRPG rips (`999 Sunken Ship (After Calamari)`, `999
+  Whistling in the Shower`): one will not play from the start, the
+  other's sequencer "doesn't look like the song". Not on this machine;
+  ask for the files. Likely unused/hidden tracks.
+- calb asks for a way to make a pattern longer. N-SPC pattern length is
+  the shortest voice; extending means appending to every voice.
+- PR #19 (telescopeman: Mac scale + Undo/Redo into Edit menu) is safe to
+  merge: `SDL_RenderSetScale` once per frame, the ImGui SDLRenderer2
+  backend defers to a user scale, ratio 1.0 on Windows/Linux.
+- Still unreproduced: large-selection paste, cut/paste leaving part of a
+  channel, "deleting a note does nothing", the row-14 mute in Snowy Land.
+- The 2026-09-20 items below.
+
+## Suggested order next session
+
+1. Merge #19, version 0.5.3 with everything since 0.5.2.
+2. Ask calb for the 999 rips; test Title Screen edits on his build.
+3. Reserved-bytes rescue is a fallback only: a rip with one garbage song
+   that happens to locate would still hide a real one under samples.
+
+---
+
+# Handoff, 2026-09-20 (previous)
 
 ## Done this session (six commits, in order)
 
