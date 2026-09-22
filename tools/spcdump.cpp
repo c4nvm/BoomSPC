@@ -78,15 +78,17 @@ int dump_generic(const seq::Driver& F, const uint8_t* ram, bool tracks) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2) { std::fprintf(stderr, "usage: %s file.spc [--run SECONDS] [--tracks] [--song N] [--disasm HEXADDR[:COUNT]]\n", argv[0]); return 2; }
+    if (argc < 2) { std::fprintf(stderr, "usage: %s file.spc [--run SECONDS] [--tracks] [--song N] [--pattern HEXADDR] [--disasm HEXADDR[:COUNT]]\n", argv[0]); return 2; }
     double run = 0; bool tracks = false;
     int disasm_at = -1, disasm_n = 32;
     int song_arg = -1;                 // --song N: dump that song instead of the one the driver is on
+    int pattern_at = -1;               // --pattern HEXADDR: parse one pattern table, found or not
     const char* dump_path = nullptr;   // --dumpram PATH: 64K RAM + 128 DSP bytes + PC (2) after --run
     for (int i = 2; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--run") && i + 1 < argc) run = std::atof(argv[++i]);
         else if (!std::strcmp(argv[i], "--tracks")) tracks = true;
         else if (!std::strcmp(argv[i], "--song") && i + 1 < argc) song_arg = std::atoi(argv[++i]);
+        else if (!std::strcmp(argv[i], "--pattern") && i + 1 < argc) pattern_at = int(std::strtol(argv[++i], nullptr, 16));
         else if (!std::strcmp(argv[i], "--dumpram") && i + 1 < argc) dump_path = argv[++i];
         else if (!std::strcmp(argv[i], "--disasm") && i + 1 < argc) {
             disasm_at = int(std::strtol(argv[++i], nullptr, 16));
@@ -140,6 +142,16 @@ int main(int argc, char** argv) {
     const nspc::Layout& L = N->L;
     std::printf("  cmd base %02X  len table %04X  inst table %04X (stride %d)  perc table %04X  tempo @$%02X = %.1f ticks/s\n",
                 L.cmd_base, L.len_table, L.inst_table, L.inst_stride, L.perc_table, L.tempo_addr, N->ticks_per_second(ram.data()));
+
+    if (pattern_at >= 0) {
+        nspc::Pattern p = nspc::parse_pattern(ram.data(), L, uint16_t(pattern_at));
+        std::printf("pattern @%04X: %d ticks |", p.addr, p.length_ticks);
+        for (int v = 0; v < 8; ++v)
+            if (p.tracks[v].addr) std::printf(" v%d@%04X-%04X:%d%s%s", v, p.tracks[v].addr, p.tracks[v].end_addr, p.tracks[v].total_ticks,
+                                             p.tracks[v].truncated ? "!" : "", p.tracks[v].terminated ? "" : "~");
+        std::printf("\n");
+        return 0;
+    }
 
     auto songs = nspc::find_songs(ram.data(), L, dsp.data());
     int cur = song_arg >= 0 && song_arg < int(songs.size()) ? song_arg : nspc::pick_current_song(ram.data(), L, songs);
