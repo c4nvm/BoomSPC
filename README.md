@@ -180,7 +180,7 @@ installs have not been run on real machines yet.
 - headless ui for scripting / screenshots:
   `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/boomspc song.spc --size 1400x900 --script "wait 60; click 600 256; key Space; run WIN_ABOUT; shot a.bmp"`
   (`move`, `click`, `rclick`, `mdown`/`mup`, `wheel X Y`, `hold`/`release`,
-  `text`, `run ACTION`). `--record out.wav` saves the audio.
+  `text`, `run ACTION`, `export out.spc`). `--record out.wav` saves the audio.
 
 ## layout
 

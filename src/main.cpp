@@ -296,6 +296,8 @@ int main(int argc, char** argv) {
                     io.AddInputCharactersUTF8(st.arg.c_str());
                 } else if (st.cmd == "shot") {
                     pending_shot = st.arg;
+                } else if (st.cmd == "export") {
+                    if (std::string err = app.engine.export_spc(st.arg); !err.empty()) std::fprintf(stderr, "script: export: %s\n", err.c_str());
                 } else std::fprintf(stderr, "script: unknown command '%s'\n", st.cmd.c_str());
             }
         }
