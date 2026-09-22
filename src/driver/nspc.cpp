@@ -663,6 +663,11 @@ struct Scanner {
 
 }
 
+namespace {
+bool find_track_pointers(const uint8_t* ram, const Song& song, uint16_t& base_out, int& pattern_out, int& score_out);
+int  find_order_pointer(const uint8_t* ram, const Song& song, uint16_t& addr_out);
+}
+
 std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t* dsp) {
     std::vector<Song> songs;
     if (!L.valid()) return songs;
@@ -688,11 +693,10 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         if (edl) skip(esa, esa + edl * 2048);
     }
 
-    constexpr int kDataStart = 0x400;
-    for (int a = kDataStart; a < 0xFFF0; ++a) {
-        if (consumed[a]) continue;
-        if (!S.pattern_ok(L.resolve(rd16(ram, a)))) continue;
-
+    const std::vector<bool> reserved = consumed;   // samples and echo, before any song claimed bytes
+    // The song whose order list starts at `a`, if the words there are one.
+    auto song_at = [&](int a, Song& s) {
+        if (!S.pattern_ok(L.resolve(rd16(ram, a)))) return false;
         int p = a;
         std::vector<Order> orders;
         while (p < 0xFFF0 && S.pattern_ok(L.resolve(rd16(ram, p)))) {
@@ -704,17 +708,15 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         if (term == 0) {
         } else if (term < 0x100) {
             uint16_t target = L.resolve(rd16(ram, p + 2));
-            if (target < a || target >= p || ((target - a) & 1)) continue;
+            if (target < a || target >= p || ((target - a) & 1)) return false;
             loop_count = term;
             loop_to = (target - a) / 2;
             end = p + 4;
         } else {
-            continue;
+            return false;
         }
-        bool overlaps = false;   // a pattern inside its own order list is a mis-aligned start
-        for (const Order& o : orders) if (o.pattern_addr >= a && o.pattern_addr < end) overlaps = true;
-        if (overlaps) continue;
-        Song s;
+        for (const Order& o : orders) if (o.pattern_addr >= a && o.pattern_addr < end) return false;   // a pattern inside its own order list is a mis-aligned start
+        s = Song{};
         s.order_addr = uint16_t(a);
         s.order_end  = uint16_t(end);
         s.orders     = std::move(orders);
@@ -722,9 +724,37 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         s.loop_to    = loop_to;
         for (const Order& o : s.orders)
             if (s.pattern_index(o.pattern_addr) < 0) s.patterns.push_back(parse_pattern(ram, L, o.pattern_addr));
-        if (s.total_ticks() == 0) continue;
+        return s.total_ticks() > 0;
+    };
+    auto located = [&](const Song& s) {   // the voices read it and the driver is on one of its orders
+        uint16_t base, oa; int pat, score;
+        return find_track_pointers(ram, s, base, pat, score) && find_order_pointer(ram, s, oa) >= 0;
+    };
+
+    constexpr int kDataStart = 0x400;
+    for (int a = kDataStart; a < 0xFFF0; ++a) {
+        if (consumed[a]) continue;
+        Song s;
+        if (!song_at(a, s)) continue;
+        for (int k = a; k < s.order_end; ++k) consumed[k] = true;
         songs.push_back(std::move(s));
-        for (int k = a; k < end; ++k) consumed[k] = true;
+    }
+    // A song bank loaded over old sample data leaves the directory pointing
+    // at it (Lemmings' Staff Roll at B000 under sample 27). When no song
+    // found in the open bytes is the one the voices play, the reserved
+    // bytes are searched too, for a song the voices do play.
+    bool any_located = false;
+    for (const Song& s : songs) if (located(s)) { any_located = true; break; }
+    if (!any_located) {
+        std::vector<bool> taken(0x10000, false);
+        for (const Song& s : songs) for (int k = s.order_addr; k < s.order_end; ++k) taken[k] = true;
+        for (int a = kDataStart; a < 0xFFF0; ++a) {
+            if (!reserved[a] || taken[a]) continue;
+            Song s;
+            if (!song_at(a, s) || !located(s)) continue;
+            for (int k = a; k < s.order_end; ++k) taken[k] = true;
+            songs.push_back(std::move(s));
+        }
     }
     // A word inside a pattern header or a track can pass as a one-entry
     // order list. An order list that starts inside another song's pattern
