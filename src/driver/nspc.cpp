@@ -987,23 +987,28 @@ int note_semitone(const Layout& L, uint8_t note_byte) {
 
 // Two length groups in a row would make the driver play the second as a
 // note; they collapse to one (last length, last qv seen).
-std::vector<uint8_t> serialize_track(const std::vector<Event>& events) {
+std::vector<uint8_t> serialize_track(const std::vector<Event>& events, std::vector<int>* offsets) {
     std::vector<uint8_t> out;
-    int pending_len = -1, pending_qv = -1;
+    if (offsets) offsets->assign(events.size(), -1);
+    int pending_len = -1, pending_qv = -1, pending_i = -1;
     auto flush = [&] {
         if (pending_len < 0) return;
+        if (offsets) (*offsets)[size_t(pending_i)] = int(out.size());
         out.push_back(uint8_t(pending_len));
         if (pending_qv >= 0) out.push_back(uint8_t(pending_qv));
         pending_len = pending_qv = -1;
     };
-    for (const Event& e : events) {
+    for (size_t k = 0; k < events.size(); ++k) {
+        const Event& e = events[k];
         if (e.in_sub) continue;
         if (e.type == EventType::Length && e.size <= 2) {
             pending_len = e.b[0];
             if (e.size == 2) pending_qv = e.b[1];
+            pending_i = int(k);
             continue;
         }
         flush();
+        if (offsets) (*offsets)[k] = int(out.size());
         for (int i = 0; i < e.size; ++i) out.push_back(e.b[i]);
     }
     flush();

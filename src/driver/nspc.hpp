@@ -100,7 +100,8 @@ std::string note_name(int semitone);
 int         note_semitone(const Layout& L, uint8_t note_byte);
 int         note_pitch(const uint8_t* ram, int semitone, int mult_hi, int mult_lo);
 
-std::vector<uint8_t> serialize_track(const std::vector<Event>& events);
+// `offsets`: where each event landed in the bytes (-1 = not written).
+std::vector<uint8_t> serialize_track(const std::vector<Event>& events, std::vector<int>* offsets = nullptr);
 
 const char* variant_name(Variant v);
 const char* profile_name(Profile p);

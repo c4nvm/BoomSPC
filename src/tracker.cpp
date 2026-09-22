@@ -522,7 +522,8 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         return r;
     }
 
-    std::vector<uint8_t> bytes = drv->serialize_track(events);
+    std::vector<int> offsets;   // where each event landed in `bytes`
+    std::vector<uint8_t> bytes = nspc_layout() ? nspc::serialize_track(events, &offsets) : drv->serialize_track(events);
     uint16_t dest = t.addr;
     bool relocated = false;
 
@@ -586,6 +587,43 @@ Tracker::Result Tracker::write_track(Engine& eng, int pattern_idx, int voice, st
         drv->track_pointer_writes(*sg, pattern_idx, voice, dest, ptr);
         if (ptr.empty()) { uint8_t w[2] = {uint8_t(dest & 0xFF), uint8_t(dest >> 8)}; eng.write_ram(uint16_t(pat.addr + voice * 2), w, 2); }
         for (auto& w : ptr) eng.write_ram(w.first, &w.second, 1);
+    }
+    // A voice reading this track keeps its place in the new bytes: the
+    // pointer sits on an event boundary, and the boundaries moved. The
+    // running emulator and the image (where the rip was dumped, which is
+    // what restart and export play) are separate positions. A pointer
+    // inside a shared body the edit unrolled lands on the copy; the stale
+    // repeat count only matters at a track end, and an unrolled iteration
+    // is followed by the remaining calls or is the last one.
+    if (!offsets.empty()) {
+        seq::Driver::Remap remap;
+        for (size_t i = 0; i < events.size(); ++i) {
+            if (events[i].in_sub || events[i].addr == 0 || offsets[i] < 0) continue;
+            remap.pairs.push_back({events[i].addr, uint16_t(dest + offsets[i])});
+            remap.pairs.push_back({uint16_t(events[i].addr + events[i].size), uint16_t(dest + offsets[i] + events[i].size)});
+        }
+        auto move_pointer = [&](const uint8_t* ram, const seq::Position& at, Engine::WriteTarget target) {
+            if (!at.valid || at.order_index < 0 || at.order_index >= int(sg->orders.size())) return;
+            if (sg->orders[size_t(at.order_index)].pattern_addr != pat.addr) return;
+            const uint16_t p = at.voice_ptr[voice];
+            int mapped = remap.find(p);
+            if (mapped < 0 && at.voice_event[voice] >= 0 && at.voice_event[voice] < int(t.events.size())) {
+                // Inside a body the edit copied out (the copy has no address
+                // of its own): the event at the same tick, then behind it.
+                const Event& cur = t.events[size_t(at.voice_event[voice])];
+                if (p == uint16_t(cur.addr + cur.size))
+                    for (size_t i = 0; i < events.size() && mapped < 0; ++i)
+                        if (!events[i].in_sub && offsets[i] >= 0 && events[i].tick == cur.tick && events[i].type == cur.type && events[i].size == cur.size)
+                            mapped = dest + offsets[i] + events[i].size;
+            }
+            if (mapped < 0 || mapped == p) return;
+            if (std::getenv("BOOMSPC_DEBUG_EDIT")) std::fprintf(stderr, "%s v%d pointer %04X -> %04X\n", target == Engine::kLiveOnly ? "live" : "image", voice, at.voice_ptr[voice], mapped);
+            std::vector<std::pair<uint16_t, uint8_t>> lp;
+            drv->live_state_writes(ram, at, voice, uint16_t(mapped), remap, lp);
+            for (auto& w : lp) eng.write_ram(w.first, &w.second, 1, target);
+        };
+        move_pointer(snap.ram, drv->locate(snap.ram, *sg, &pos), Engine::kLiveOnly);
+        move_pointer(eng.image_ram(), drv->locate(eng.image_ram(), *sg, nullptr), Engine::kImageOnly);
     }
     // What the old bytes no longer hold goes back to the free pool: the whole
     // track when it moved, the tail when it shrank in place. A voice still
