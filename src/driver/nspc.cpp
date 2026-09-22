@@ -650,7 +650,10 @@ struct Scanner {
             uint16_t t = L.resolve(rd16(ram, a + v * 2));
             if (t == 0) continue;
             ++used;
-            if (!track_ok(t)) ok = false;
+            // A track inside its own header is a mis-aligned start (Inindo's
+            // second song table, read four bytes early).
+            if (t >= a && t < a + 16) ok = false;
+            else if (!track_ok(t)) ok = false;
         }
         ok = ok && used >= 1;
         pattern_cache[a] = ok ? 1 : -1;
@@ -724,9 +727,8 @@ std::vector<Song> find_songs(const uint8_t* ram, const Layout& L, const uint8_t*
         for (int k = a; k < end; ++k) consumed[k] = true;
     }
     // A word inside a pattern header or a track can pass as a one-entry
-    // order list (Inindo's Villages listed each of its twelve patterns as a
-    // song of its own). An order list that starts inside another song's
-    // pattern headers or track bytes is that song's data, not a song.
+    // order list. An order list that starts inside another song's pattern
+    // headers or track bytes is that song's data, not a song.
     std::vector<uint8_t> owner(0x10000, 0);   // bit 1 = pattern header, bit 2 = track byte, of some song
     for (const Song& s : songs)
         for (const Pattern& p : s.patterns) {
