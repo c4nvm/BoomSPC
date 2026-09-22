@@ -7,6 +7,7 @@ namespace {
 constexpr Chord K(ImGuiKey k, int m = 0) { return Chord{k, m}; }
 constexpr Binding B(Chord a, Chord b = Chord{}) { return Binding{{a, b}}; }
 
+// Don't reorder any of the actions here, it will break the menu. Presumably you have to make the same changes in the .hpp.
 const ActionDef kDefs[A_COUNT] = {
     {"PLAY_TOGGLE",    "Play / stop",                    "Transport", SCOPE_GLOBAL,  B(K(ImGuiKey_Enter), K(ImGuiKey_KeypadEnter)), false},
     {"PLAY",           "Play",                           "Transport", SCOPE_GLOBAL,  B(K(ImGuiKey_None)), false},
