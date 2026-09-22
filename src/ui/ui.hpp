@@ -97,7 +97,7 @@ struct App {
     std::unordered_map<uint32_t, MutedNote> muted;
     static uint32_t muted_key(int voice, int tick) { return uint32_t(voice) << 20 | uint32_t(tick & 0xFFFFF); }
 
-    int  sel_instrument = 0;
+    int  sel_instrument = -1;   // Instruments panel row; -1 = none, a typed note keeps the track's
     int  sel_sample = 0;
 
     char export_path[1024] = {};

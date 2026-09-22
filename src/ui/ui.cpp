@@ -46,6 +46,7 @@ bool load_into_app(App& app, SpcFile& file, const std::string& shown_name) {
     app.tracker.analyze(app.snap);
     app.heard.clear();
     app.view_order = 0; app.sel_voice = app.sel_row = app.sel_event = -1; app.sel_active = false; app.cur_nibble = 0;
+    app.sel_instrument = -1; app.roll_ins = -1;
     if (app.tracker.drv) app.ticks_per_beat = app.tracker.drv->default_ticks_per_beat();
     if (app.tracker.song()) { std::string fit = app.fit_grid(); if (!fit.empty()) app.status += "; grid " + fit; }
     app.engine.play();
