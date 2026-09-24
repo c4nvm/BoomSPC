@@ -22,9 +22,9 @@ const ActionDef kDefs[A_COUNT] = {
     {"SAVE_PROJECT_AS","Save project as...",             "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_S, MOD_CTRL | MOD_SHIFT)), false},
     {"EXPORT_SPC",     "Export SPC...",                  "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_E, MOD_CTRL)), false},
     {"EXPORT_WAV",     "Export WAV...",                  "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_E, MOD_CTRL | MOD_SHIFT)), false},
-    {"UNDO",           "Undo",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Z, MOD_CTRL)), true},
-    {"REDO",           "Redo",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Y, MOD_CTRL), K(ImGuiKey_Z, MOD_CTRL | MOD_SHIFT)), true},
     {"QUIT",           "Quit",                           "File",      SCOPE_GLOBAL,  B(K(ImGuiKey_Q, MOD_CTRL)), false},
+    {"UNDO",           "Undo",                           "Edit",      SCOPE_GLOBAL,  B(K(ImGuiKey_Z, MOD_CTRL)), true},
+    {"REDO",           "Redo",                           "Edit",      SCOPE_GLOBAL,  B(K(ImGuiKey_Y, MOD_CTRL), K(ImGuiKey_Z, MOD_CTRL | MOD_SHIFT)), true},
 
     {"OCTAVE_UP",      "Octave up",                      "Entry",     SCOPE_GLOBAL,  B(K(ImGuiKey_KeypadMultiply), K(ImGuiKey_RightBracket)), false},
     {"OCTAVE_DOWN",    "Octave down",                    "Entry",     SCOPE_GLOBAL,  B(K(ImGuiKey_KeypadDivide), K(ImGuiKey_LeftBracket)), false},
