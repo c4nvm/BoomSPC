@@ -333,7 +333,7 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
     if (ImGui::IsItemHovered()) tooltip_spaced("Show the other voices' notes faintly.");
     same_line_if_fits(text_w("-") + text_w("+") + text_w("zoom") + text_w("-") + text_w("+") + em(3));
     if (ImGui::SmallButton("-")) app.roll_zoom = std::max(kZoomMin, app.roll_zoom / 1.25f);
-    ImGui::SameLine(); if (ImGui::SmallButton("+")) app.roll_zoom = std::min(kZoomMax, app.roll_zoom * 1.25f);
+    ImGui::SameLine(); if (ImGui::SmallButton("+##Horizontal")) app.roll_zoom = std::min(kZoomMax, app.roll_zoom * 1.25f);
     ImGui::SameLine(); ImGui::TextDisabled("zoom");
     if (ImGui::IsItemHovered()) tooltip_spaced("Horizontal zoom (Ctrl + wheel over the roll, around the mouse).");
     ImGui::SameLine(); if (ImGui::SmallButton("-##zy")) app.roll_zoom_y = std::max(kZoomYMin, app.roll_zoom_y / 1.25f);
