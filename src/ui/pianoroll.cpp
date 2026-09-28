@@ -451,11 +451,13 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
 
     dl->AddRectFilled(ImVec2(win.x, win.y), ImVec2(win.x + win_size.x, win.y + win_size.y), th.u32(TC_PATTERN_BG));
     dl->PushClipRect(ImVec2(view_x0, view_y0), ImVec2(view_x1, view_y1), true);
+    // Add way to tell whether a key is black.
     static const bool black[12] = {false, true, false, true, false, false, true, false, true, false, true, false};
     for (int s = 0; s < kSemitones; ++s) {
         float y = semi_y(s);
         if (y + row_h < view_y0 || y > view_y1) continue;
-        if (black[s % 12]) dl->AddRectFilled(ImVec2(view_x0, y), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_HI1, 0.35f));
+        // If a key is white, have it be lighter-colored.
+        if (!black[s % 12]) dl->AddRectFilled(ImVec2(view_x0, y), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_HI1, 0.35f));
         if (s % 12 == 0) dl->AddLine(ImVec2(view_x0, y + row_h), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_INDEX_HI2, 0.6f));
     }
     const int rows = (length + tpr - 1) / tpr;
@@ -618,9 +620,10 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
     for (int s = 0; s < kSemitones; ++s) {
         float y = semi_y(s);
         if (y + row_h < view_y0 || y > view_y1) continue;
-        dl->AddRectFilled(ImVec2(win.x, y), ImVec2(view_x0, y + row_h), black[s % 12] ? th.u32(TC_CHANNEL_HEADER_BG) : th.u32(TC_ROW_HI2, 0.6f));
+        // If a row corresponds to a white key, have it be lighter-colored as well to match.
+        dl->AddRectFilled(ImVec2(win.x, y), ImVec2(view_x0, y + row_h), !black[s % 12] ? th.u32(TC_CHANNEL_HEADER_BG) : th.u32(TC_ROW_HI2, 0.6f));
         if (s % 12 == 0 || row_h >= ImGui::GetTextLineHeight())
-            dl->AddText(ImVec2(win.x + 4, y + (row_h - ImGui::GetTextLineHeight()) * 0.5f), black[s % 12] ? th.u32(TC_ROW_INDEX) : th.u32(TC_NOTE), seq::note_name(s).c_str());
+            dl->AddText(ImVec2(win.x + 4, y + (row_h - ImGui::GetTextLineHeight()) * 0.5f), !black[s % 12] ? th.u32(TC_ROW_INDEX) : th.u32(TC_NOTE), seq::note_name(s).c_str());
     }
     dl->PopClipRect();
     dl->PushClipRect(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), true);
