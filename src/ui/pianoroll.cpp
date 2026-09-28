@@ -763,7 +763,9 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) { drag = {}; drag.mode = Mode::SlideTarget; drag.slide_ev = hover_slide; drag.start = m; }
         } else if (under && in_canvas) {
             const bool edge = m.x > tick_x(float(under->tick + under->dur)) - std::max(6.0f, cw);
-            ImGui::SetMouseCursor(key_s ? ImGuiMouseCursor_ResizeNS : edge ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_Hand);
+            // Change mouse cursor appearance depending on action.
+            // If holding SHIFT, show delete icon, if on edge show resize icon, etc.
+            ImGui::SetMouseCursor(io.KeyShift ? ImGuiMouseCursor_NotAllowed : key_s ? ImGuiMouseCursor_ResizeNS : edge ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_Hand);
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("%s  tick %d  %d ticks%s%s", under->semitone >= 0 ? seq::note_name(under->semitone).c_str() : "percussion", under->tick, under->dur, under->in_sub ? "  (shared bytes)" : "", under->attack ? "" : "  (no key-on)");
                 if (under->ins >= 0) ImGui::Text("instrument %02X", under->ins);
