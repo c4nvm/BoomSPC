@@ -456,8 +456,11 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
     for (int s = 0; s < kSemitones; ++s) {
         float y = semi_y(s);
         if (y + row_h < view_y0 || y > view_y1) continue;
-        // If a key is white, have it be lighter-colored.
-        if (!black[s % 12]) dl->AddRectFilled(ImVec2(view_x0, y), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_HI1, 0.35f));
+        
+        if (!black[s % 12]){
+            // If a key is white, have that row be lighter-colored.
+            dl->AddRectFilled(ImVec2(view_x0, y), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_HI1, 0.35f));
+        }
         if (s % 12 == 0) dl->AddLine(ImVec2(view_x0, y + row_h), ImVec2(tick_x(float(length)), y + row_h), th.u32(TC_ROW_INDEX_HI2, 0.6f));
     }
     const int rows = (length + tpr - 1) / tpr;
@@ -618,12 +621,26 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
 
     dl->PushClipRect(ImVec2(win.x, view_y0), ImVec2(view_x0, view_y1), true);
     for (int s = 0; s < kSemitones; ++s) {
+        float keyRoundingAmount = 0.f;
         float y = semi_y(s);
         if (y + row_h < view_y0 || y > view_y1) continue;
-        // If a row corresponds to a white key, have it be lighter-colored as well to match.
-        dl->AddRectFilled(ImVec2(win.x, y), ImVec2(view_x0, y + row_h), !black[s % 12] ? th.u32(TC_CHANNEL_HEADER_BG) : th.u32(TC_ROW_HI2, 0.6f));
+        // Have white keys be lighter-colored.
+        ImU32 thisKeyColor;
+        if (black[s % 12])
+        {
+            thisKeyColor = th.u32(TC_ROW_HI2, 0.6f);
+        }
+        else{
+            thisKeyColor = th.u32(TC_CHANNEL_HEADER_BG);
+        }
+        // Draw the keys in light or dark color.
+        dl->AddRectFilled(ImVec2(win.x, y), ImVec2(view_x0, y + row_h), thisKeyColor, keyRoundingAmount);
+        // Add outline to better distinguish keys.
+        dl->AddRect(ImVec2(win.x, y), ImVec2(view_x0, y + row_h), th.u32(TC_ROW_INDEX_HI2, 0.4f), keyRoundingAmount, 1.f);
+        
         if (s % 12 == 0 || row_h >= ImGui::GetTextLineHeight())
             dl->AddText(ImVec2(win.x + 4, y + (row_h - ImGui::GetTextLineHeight()) * 0.5f), !black[s % 12] ? th.u32(TC_ROW_INDEX) : th.u32(TC_NOTE), seq::note_name(s).c_str());
+        
     }
     dl->PopClipRect();
     dl->PushClipRect(ImVec2(win.x, win.y), ImVec2(view_x1, view_y0), true);
