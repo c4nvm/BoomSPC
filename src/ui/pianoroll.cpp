@@ -881,15 +881,28 @@ bool draw_piano_roll(App& app, int pat_idx, float head_tick) {
                 if (!down) drag.mode = Mode::None;
                 break;
             }
+                
             case Mode::Select: {
-                int a = drag.anchor, z = snap(mtick) + unit;
-                app.roll_sel_t0 = std::min(a, z); app.roll_sel_t1 = std::max(a, z);
+                // Properly process the values so that left-to-right and right-to-left selection is symmetrical
+                float safe_anchor = std::fmax(0.f, drag.anchor);
+                float safe_mtick  = std::fmax(0.f, mtick);
+
+                // Snap the positions to the musical grid
+                float t_anchor  = snap(safe_anchor);
+                float t_current = snap(safe_mtick);
+
+                // Find which of these is lower and which is higher for logic purposes
+                app.roll_sel_t0 = std::fmin(t_anchor, t_current); // Lower
+                app.roll_sel_t1 = std::fmax(t_anchor, t_current) + unit; // Higher (always includes at least one unit)
                 if (!down) {
+                    // When you release the mouse...
                     if (!drag.moved) {
+                        // If you just clicked and didn't drag, cancel selection.
                         app.roll_sel_t0 = app.roll_sel_t1 = 0;
                         menu_tick = drag.anchor; menu_semitone = -1; menu_ins = -1; menu_note = false;
                         if (mtick >= 0 && mtick < length) open_menu = true;
                     }
+                    // Exit dragging mode.
                     drag.mode = Mode::None;
                 }
                 break;
